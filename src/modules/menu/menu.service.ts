@@ -1,0 +1,318 @@
+import type { PrismaClient } from '@prisma/client'
+import { AppError, ErrorCodes } from '../../common/errors/app-error'
+import { ensureRestaurantRole } from '../../common/middleware/require-role'
+import { AuditService } from '../audit/audit.service'
+import type {
+  CreateAddonGroupInput,
+  CreateAddonInput,
+  CreateCategoryInput,
+  CreateItemInput,
+  ListItemsQuery,
+  UpdateAddonGroupInput,
+  UpdateAddonInput,
+  UpdateCategoryInput,
+  UpdateItemInput,
+} from './menu.schema'
+
+export class MenuService {
+  private readonly audit: AuditService
+
+  constructor(private readonly prisma: PrismaClient) {
+    this.audit = new AuditService(prisma)
+  }
+
+  async createCategory(userId: string, restaurantId: string, input: CreateCategoryInput) {
+    await ensureRestaurantRole(this.prisma, userId, restaurantId, ['MANAGER'])
+    await this.ensureBranchBelongsToRestaurant(restaurantId, input.branchId)
+
+    return this.prisma.menuCategory.create({
+      data: { restaurantId, ...input },
+    })
+  }
+
+  async listCategories(userId: string, restaurantId: string) {
+    await ensureRestaurantRole(this.prisma, userId, restaurantId, ['STAFF', 'MANAGER', 'KITCHEN'])
+
+    return this.prisma.menuCategory.findMany({
+      where: { restaurantId, isActive: true },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+      include: {
+        items: {
+          where: { isActive: true },
+          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+        },
+      },
+    })
+  }
+
+  async updateCategory(userId: string, categoryId: string, input: UpdateCategoryInput) {
+    const category = await this.getCategory(categoryId)
+    await ensureRestaurantRole(this.prisma, userId, category.restaurantId, ['MANAGER'])
+    await this.ensureBranchBelongsToRestaurant(category.restaurantId, input.branchId)
+
+    return this.prisma.menuCategory.update({
+      where: { id: categoryId },
+      data: input,
+    })
+  }
+
+  async deleteCategory(userId: string, categoryId: string) {
+    const category = await this.getCategory(categoryId)
+    await ensureRestaurantRole(this.prisma, userId, category.restaurantId, ['MANAGER'])
+
+    return this.prisma.menuCategory.update({
+      where: { id: categoryId },
+      data: { isActive: false },
+    })
+  }
+
+  async createItem(userId: string, categoryId: string, input: CreateItemInput) {
+    const category = await this.getCategory(categoryId)
+    await ensureRestaurantRole(this.prisma, userId, category.restaurantId, ['MANAGER'])
+    await this.ensureBranchBelongsToRestaurant(category.restaurantId, input.branchId)
+
+    const item = await this.prisma.menuItem.create({
+      data: {
+        ...input,
+        restaurantId: category.restaurantId,
+        branchId: input.branchId ?? category.branchId,
+        categoryId,
+      },
+      include: { addonGroups: { include: { addons: true } } },
+    })
+
+    await this.audit.log({
+      restaurantId: item.restaurantId,
+      branchId: item.branchId,
+      userId,
+      action: 'menu.item_created',
+      entityType: 'MenuItem',
+      entityId: item.id,
+      metadata: { name: item.name, priceInPaise: item.priceInPaise },
+    })
+
+    return item
+  }
+
+  async listItems(userId: string, restaurantId: string, query: ListItemsQuery) {
+    await ensureRestaurantRole(this.prisma, userId, restaurantId, ['STAFF', 'MANAGER', 'KITCHEN'])
+
+    return this.prisma.menuItem.findMany({
+      where: {
+        restaurantId,
+        isActive: true,
+        branchId: query.branchId,
+        categoryId: query.categoryId,
+        isAvailable: query.includeUnavailable ? undefined : true,
+      },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+      include: {
+        category: true,
+        addonGroups: { include: { addons: true }, orderBy: { createdAt: 'asc' } },
+      },
+    })
+  }
+
+  async getItem(userId: string, itemId: string) {
+    const item = await this.getActiveItem(itemId)
+    await ensureRestaurantRole(this.prisma, userId, item.restaurantId, [
+      'STAFF',
+      'MANAGER',
+      'KITCHEN',
+    ])
+    return item
+  }
+
+  async updateItem(userId: string, itemId: string, input: UpdateItemInput) {
+    const existing = await this.getActiveItem(itemId)
+    await ensureRestaurantRole(this.prisma, userId, existing.restaurantId, ['MANAGER'])
+    await this.ensureBranchBelongsToRestaurant(existing.restaurantId, input.branchId)
+
+    const item = await this.prisma.menuItem.update({
+      where: { id: itemId },
+      data: input,
+      include: { addonGroups: { include: { addons: true } } },
+    })
+
+    await this.audit.log({
+      restaurantId: item.restaurantId,
+      branchId: item.branchId,
+      userId,
+      action: 'menu.item_updated',
+      entityType: 'MenuItem',
+      entityId: item.id,
+      metadata: { changedFields: Object.keys(input) },
+    })
+
+    return item
+  }
+
+  async deleteItem(userId: string, itemId: string) {
+    const existing = await this.getActiveItem(itemId)
+    await ensureRestaurantRole(this.prisma, userId, existing.restaurantId, ['MANAGER'])
+
+    const item = await this.prisma.menuItem.update({
+      where: { id: itemId },
+      data: { isActive: false, isAvailable: false },
+    })
+
+    await this.audit.log({
+      restaurantId: item.restaurantId,
+      branchId: item.branchId,
+      userId,
+      action: 'menu.item_deleted',
+      entityType: 'MenuItem',
+      entityId: item.id,
+      metadata: { name: item.name },
+    })
+
+    return item
+  }
+
+  async updateAvailability(userId: string, itemId: string, isAvailable: boolean) {
+    const existing = await this.getActiveItem(itemId)
+    await ensureRestaurantRole(this.prisma, userId, existing.restaurantId, ['MANAGER', 'KITCHEN'])
+
+    const item = await this.prisma.menuItem.update({
+      where: { id: itemId },
+      data: { isAvailable },
+    })
+
+    await this.audit.log({
+      restaurantId: item.restaurantId,
+      branchId: item.branchId,
+      userId,
+      action: 'menu.item_availability_updated',
+      entityType: 'MenuItem',
+      entityId: item.id,
+      metadata: { isAvailable },
+    })
+
+    return item
+  }
+
+  async createAddonGroup(userId: string, itemId: string, input: CreateAddonGroupInput) {
+    const item = await this.getActiveItem(itemId)
+    await ensureRestaurantRole(this.prisma, userId, item.restaurantId, ['MANAGER'])
+
+    return this.prisma.menuItemAddonGroup.create({
+      data: {
+        restaurantId: item.restaurantId,
+        menuItemId: itemId,
+        ...input,
+      },
+      include: { addons: true },
+    })
+  }
+
+  async updateAddonGroup(userId: string, addonGroupId: string, input: UpdateAddonGroupInput) {
+    const group = await this.getAddonGroup(addonGroupId)
+    await ensureRestaurantRole(this.prisma, userId, group.restaurantId, ['MANAGER'])
+
+    return this.prisma.menuItemAddonGroup.update({
+      where: { id: addonGroupId },
+      data: input,
+      include: { addons: true },
+    })
+  }
+
+  async deleteAddonGroup(userId: string, addonGroupId: string) {
+    const group = await this.getAddonGroup(addonGroupId)
+    await ensureRestaurantRole(this.prisma, userId, group.restaurantId, ['MANAGER'])
+
+    return this.prisma.menuItemAddonGroup.delete({ where: { id: addonGroupId } })
+  }
+
+  async createAddon(userId: string, addonGroupId: string, input: CreateAddonInput) {
+    const group = await this.getAddonGroup(addonGroupId)
+    await ensureRestaurantRole(this.prisma, userId, group.restaurantId, ['MANAGER'])
+
+    return this.prisma.menuItemAddon.create({
+      data: {
+        addonGroupId,
+        ...input,
+      },
+    })
+  }
+
+  async updateAddon(userId: string, addonId: string, input: UpdateAddonInput) {
+    const addon = await this.getAddon(addonId)
+    await ensureRestaurantRole(this.prisma, userId, addon.addonGroup.restaurantId, ['MANAGER'])
+
+    return this.prisma.menuItemAddon.update({
+      where: { id: addonId },
+      data: input,
+    })
+  }
+
+  async deleteAddon(userId: string, addonId: string) {
+    const addon = await this.getAddon(addonId)
+    await ensureRestaurantRole(this.prisma, userId, addon.addonGroup.restaurantId, ['MANAGER'])
+
+    return this.prisma.menuItemAddon.update({
+      where: { id: addonId },
+      data: { isAvailable: false },
+    })
+  }
+
+  private async ensureBranchBelongsToRestaurant(restaurantId: string, branchId?: string) {
+    if (!branchId) {
+      return
+    }
+
+    const branch = await this.prisma.branch.findFirst({
+      where: { id: branchId, restaurantId, isActive: true },
+    })
+    if (!branch) {
+      throw new AppError(404, ErrorCodes.NOT_FOUND, 'Branch was not found')
+    }
+  }
+
+  private async getCategory(categoryId: string) {
+    const category = await this.prisma.menuCategory.findFirst({
+      where: { id: categoryId, isActive: true, restaurant: { isActive: true } },
+    })
+    if (!category) {
+      throw new AppError(404, ErrorCodes.NOT_FOUND, 'Menu category was not found')
+    }
+    return category
+  }
+
+  private async getActiveItem(itemId: string) {
+    const item = await this.prisma.menuItem.findFirst({
+      where: { id: itemId, isActive: true, restaurant: { isActive: true } },
+      include: {
+        category: true,
+        addonGroups: { include: { addons: true }, orderBy: { createdAt: 'asc' } },
+      },
+    })
+    if (!item) {
+      throw new AppError(404, ErrorCodes.NOT_FOUND, 'Menu item was not found')
+    }
+    return item
+  }
+
+  private async getAddonGroup(addonGroupId: string) {
+    const group = await this.prisma.menuItemAddonGroup.findUnique({
+      where: { id: addonGroupId },
+      include: { menuItem: true },
+    })
+    if (!group || !group.menuItem.isActive) {
+      throw new AppError(404, ErrorCodes.NOT_FOUND, 'Addon group was not found')
+    }
+    return group
+  }
+
+  private async getAddon(addonId: string) {
+    const addon = await this.prisma.menuItemAddon.findUnique({
+      where: { id: addonId },
+      include: { addonGroup: true },
+    })
+    if (!addon) {
+      throw new AppError(404, ErrorCodes.NOT_FOUND, 'Addon was not found')
+    }
+    return addon
+  }
+}
+
+

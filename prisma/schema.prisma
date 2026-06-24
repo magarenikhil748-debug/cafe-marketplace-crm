@@ -1,0 +1,370 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  OWNER
+  MANAGER
+  STAFF
+  KITCHEN
+}
+
+enum FoodType {
+  VEG
+  NON_VEG
+  EGG
+  JAIN
+  BEVERAGE
+}
+
+enum OrderStatus {
+  PLACED
+  ACCEPTED
+  PREPARING
+  READY
+  SERVED
+  CANCELLED
+}
+
+enum OrderType {
+  DINE_IN
+  TAKEAWAY
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String
+  email        String   @unique
+  phone        String?
+  passwordHash String
+  role         UserRole @default(OWNER)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  ownedRestaurants Restaurant[]       @relation("RestaurantOwner")
+  memberships      RestaurantMember[]
+  auditLogs        AuditLog[]
+
+  @@index([email])
+  @@map("users")
+}
+
+model Restaurant {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String   @unique
+  description String?
+  ownerId     String   @db.Uuid
+  phone       String?
+  email       String?
+  address     String?
+  city        String?
+  currency    String   @default("INR")
+  taxEnabled  Boolean  @default(false)
+  gstNumber   String?
+  logoUrl     String?
+  imageUrl    String?
+  isActive    Boolean  @default(true)
+  isApproved  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner         User                     @relation("RestaurantOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  branches      Branch[]
+  members       RestaurantMember[]
+  tables        DiningTable[]
+  categories    MenuCategory[]
+  items         MenuItem[]
+  addonGroups   MenuItemAddonGroup[]
+  orders        Order[]
+  auditLogs     AuditLog[]
+  idempotencies IdempotencyKey[]
+  orderSequence RestaurantOrderSequence?
+
+  @@index([ownerId])
+  @@index([createdAt])
+  @@index([isActive, isApproved])
+  @@map("restaurants")
+}
+
+model Branch {
+  id           String   @id @default(uuid()) @db.Uuid
+  restaurantId String   @db.Uuid
+  name         String
+  address      String?
+  phone        String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  restaurant Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  members    RestaurantMember[]
+  tables     DiningTable[]
+  categories MenuCategory[]
+  items      MenuItem[]
+  orders     Order[]
+  auditLogs  AuditLog[]
+
+  @@index([restaurantId])
+  @@index([createdAt])
+  @@map("branches")
+}
+
+model RestaurantMember {
+  id           String   @id @default(uuid()) @db.Uuid
+  restaurantId String   @db.Uuid
+  branchId     String?  @db.Uuid
+  userId       String   @db.Uuid
+  role         UserRole
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  branch     Branch?    @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, userId, branchId])
+  @@index([restaurantId])
+  @@index([branchId])
+  @@index([userId])
+  @@map("restaurant_members")
+}
+
+model DiningTable {
+  id           String   @id @default(uuid()) @db.Uuid
+  restaurantId String   @db.Uuid
+  branchId     String   @db.Uuid
+  tableNumber  String
+  tableLabel   String?
+  qrToken      String   @unique
+  qrUrl        String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  branch     Branch     @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  orders     Order[]
+
+  @@unique([restaurantId, branchId, tableNumber])
+  @@index([restaurantId])
+  @@index([branchId])
+  @@index([qrToken])
+  @@index([restaurantId, branchId])
+  @@map("dining_tables")
+}
+
+model MenuCategory {
+  id           String   @id @default(uuid()) @db.Uuid
+  restaurantId String   @db.Uuid
+  branchId     String?  @db.Uuid
+  name         String
+  description  String?
+  sortOrder    Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  branch     Branch?    @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  items      MenuItem[]
+
+  @@index([restaurantId])
+  @@index([branchId])
+  @@index([restaurantId, branchId])
+  @@map("menu_categories")
+}
+
+model MenuItem {
+  id                     String   @id @default(uuid()) @db.Uuid
+  restaurantId           String   @db.Uuid
+  branchId               String?  @db.Uuid
+  categoryId             String   @db.Uuid
+  name                   String
+  description            String?
+  priceInPaise           Int
+  imageUrl               String?
+  foodType               FoodType
+  isAvailable            Boolean  @default(true)
+  isRecommended          Boolean  @default(false)
+  isActive               Boolean  @default(true)
+  preparationTimeMinutes Int?
+  sortOrder              Int      @default(0)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  restaurant  Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  branch      Branch?              @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  category    MenuCategory         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  addonGroups MenuItemAddonGroup[]
+  orderItems  OrderItem[]
+
+  @@index([restaurantId])
+  @@index([branchId])
+  @@index([categoryId])
+  @@index([restaurantId, branchId])
+  @@map("menu_items")
+}
+
+model MenuItemAddonGroup {
+  id           String   @id @default(uuid()) @db.Uuid
+  restaurantId String   @db.Uuid
+  menuItemId   String   @db.Uuid
+  name         String
+  minSelect    Int      @default(0)
+  maxSelect    Int      @default(1)
+  isRequired   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  restaurant Restaurant      @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  menuItem   MenuItem        @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  addons     MenuItemAddon[]
+
+  @@index([restaurantId])
+  @@index([menuItemId])
+  @@map("menu_item_addon_groups")
+}
+
+model MenuItemAddon {
+  id           String   @id @default(uuid()) @db.Uuid
+  addonGroupId String   @db.Uuid
+  name         String
+  priceInPaise Int      @default(0)
+  isAvailable  Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  addonGroup MenuItemAddonGroup @relation(fields: [addonGroupId], references: [id], onDelete: Cascade)
+
+  @@index([addonGroupId])
+  @@map("menu_item_addons")
+}
+
+model Order {
+  id                  String      @id @default(uuid()) @db.Uuid
+  restaurantId        String      @db.Uuid
+  branchId            String      @db.Uuid
+  tableId             String      @db.Uuid
+  tableNumberSnapshot String?
+  orderNumber         String
+  customerName        String?
+  customerPhone       String?
+  status              OrderStatus @default(PLACED)
+  orderType           OrderType   @default(DINE_IN)
+  subtotalInPaise     Int
+  taxInPaise          Int
+  totalInPaise        Int
+  specialInstructions String?
+  idempotencyKey      String?
+  placedAt            DateTime    @default(now())
+  acceptedAt          DateTime?
+  preparingAt         DateTime?
+  readyAt             DateTime?
+  servedAt            DateTime?
+  cancelledAt         DateTime?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  restaurant Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
+  branch     Branch      @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  table      DiningTable @relation(fields: [tableId], references: [id], onDelete: Restrict)
+  items      OrderItem[]
+
+  @@unique([restaurantId, orderNumber])
+  @@index([restaurantId])
+  @@index([branchId])
+  @@index([tableId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([restaurantId, branchId])
+  @@index([restaurantId, createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id                String   @id @default(uuid()) @db.Uuid
+  orderId           String   @db.Uuid
+  menuItemId        String   @db.Uuid
+  itemNameSnapshot  String
+  unitPriceInPaise  Int
+  quantity          Int
+  totalPriceInPaise Int
+  instructions      String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  order    Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem MenuItem         @relation(fields: [menuItemId], references: [id], onDelete: Restrict)
+  addons   OrderItemAddon[]
+
+  @@index([orderId])
+  @@index([menuItemId])
+  @@map("order_items")
+}
+
+model OrderItemAddon {
+  id                String   @id @default(uuid()) @db.Uuid
+  orderItemId       String   @db.Uuid
+  addonNameSnapshot String
+  addonPriceInPaise Int
+  createdAt         DateTime @default(now())
+
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@index([orderItemId])
+  @@map("order_item_addons")
+}
+
+model AuditLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  restaurantId String   @db.Uuid
+  branchId     String?  @db.Uuid
+  userId       String?  @db.Uuid
+  action       String
+  entityType   String
+  entityId     String?
+  metadata     Json
+  createdAt    DateTime @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  branch     Branch?    @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  user       User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([restaurantId])
+  @@index([branchId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model IdempotencyKey {
+  id           String   @id @default(uuid()) @db.Uuid
+  key          String
+  restaurantId String   @db.Uuid
+  requestHash  String
+  responseBody Json
+  createdAt    DateTime @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, key])
+  @@index([restaurantId])
+  @@index([createdAt])
+  @@map("idempotency_keys")
+}
+
+model RestaurantOrderSequence {
+  restaurantId String @id @db.Uuid
+  nextNumber   Int    @default(1)
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@map("restaurant_order_sequences")
+}
