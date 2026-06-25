@@ -68,5 +68,3 @@ export const tablesRoutes = async (fastify: FastifyInstance) => {
     controller.regenerateQr,
   )
 }
-
-

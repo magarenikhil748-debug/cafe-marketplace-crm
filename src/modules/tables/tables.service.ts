@@ -31,7 +31,7 @@ export class TablesService {
     return this.withQrCode(table)
   }
 
-  async list(userId: string, branchId: string) {
+  async list(userId: string, branchId: string, includeInactive = false) {
     const branch = await this.getActiveBranch(branchId)
     await ensureRestaurantRole(this.prisma, userId, branch.restaurantId, [
       'STAFF',
@@ -40,7 +40,7 @@ export class TablesService {
     ])
 
     return this.prisma.diningTable.findMany({
-      where: { branchId, isActive: true },
+      where: { branchId, isActive: includeInactive ? undefined : true },
       orderBy: [{ tableNumber: 'asc' }, { createdAt: 'asc' }],
     })
   }
@@ -57,7 +57,7 @@ export class TablesService {
   }
 
   async update(userId: string, tableId: string, input: UpdateTableInput) {
-    const table = await this.getActiveTable(tableId)
+    const table = await this.getTableForManagement(tableId)
     await ensureRestaurantRole(this.prisma, userId, table.restaurantId, ['MANAGER'])
 
     return this.prisma.diningTable.update({
@@ -127,6 +127,20 @@ export class TablesService {
     return table
   }
 
+  private async getTableForManagement(tableId: string) {
+    const table = await this.prisma.diningTable.findFirst({
+      where: {
+        id: tableId,
+        restaurant: { isActive: true },
+        branch: { isActive: true },
+      },
+    })
+    if (!table) {
+      throw new AppError(404, ErrorCodes.TABLE_NOT_FOUND, 'Table was not found')
+    }
+    return table
+  }
+
   private async withQrCode<T extends { qrUrl: string }>(table: T) {
     return {
       ...table,
@@ -134,5 +148,3 @@ export class TablesService {
     }
   }
 }
-
-

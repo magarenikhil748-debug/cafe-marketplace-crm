@@ -4,6 +4,7 @@ import { sendSuccess } from '../../common/utils/api-response'
 import {
   branchParamsSchema,
   createTableSchema,
+  listTablesQuerySchema,
   tableParamsSchema,
   updateTableSchema,
 } from './tables.schema'
@@ -29,8 +30,9 @@ export const createTable = async (request: FastifyRequest, reply: FastifyReply) 
 export const listTables = async (request: FastifyRequest, reply: FastifyReply) => {
   const userId = requireUserId(request)
   const params = branchParamsSchema.parse(request.params)
+  const query = listTablesQuerySchema.parse(request.query)
   const service = new TablesService((request.server as any).prisma)
-  const tables = await service.list(userId, params.branchId)
+  const tables = await service.list(userId, params.branchId, query.includeInactive)
 
   return sendSuccess(reply, 'Tables fetched successfully', { tables })
 }
@@ -71,5 +73,3 @@ export const regenerateQr = async (request: FastifyRequest, reply: FastifyReply)
 
   return sendSuccess(reply, 'Table QR regenerated successfully', { table })
 }
-
-
