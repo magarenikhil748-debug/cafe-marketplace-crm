@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify'
+import { env } from '../../config/env'
 import { withSwagger } from '../../common/utils/route-schema'
 import {
   createCafeOrder,
@@ -8,6 +9,12 @@ import {
 import * as controller from './public.controller'
 
 export const publicRoutes = async (fastify: FastifyInstance) => {
+  const publicOrderRateLimit = {
+    max: env.PUBLIC_ORDER_RATE_LIMIT_MAX,
+    timeWindow: env.PUBLIC_ORDER_RATE_LIMIT_WINDOW,
+    groupId: 'public-order-placement',
+  }
+
   fastify.get(
     '/cafes',
     {
@@ -63,6 +70,7 @@ export const publicRoutes = async (fastify: FastifyInstance) => {
   fastify.post(
     '/cafes/:slug/orders',
     {
+      config: { rateLimit: publicOrderRateLimit },
       schema: withSwagger(
         ['Public'],
         'Create cafe order',
@@ -102,6 +110,7 @@ export const publicRoutes = async (fastify: FastifyInstance) => {
   fastify.post(
     '/orders',
     {
+      config: { rateLimit: publicOrderRateLimit },
       schema: withSwagger(
         ['Public'],
         'Create order',

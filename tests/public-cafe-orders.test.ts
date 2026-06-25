@@ -188,4 +188,33 @@ describe('Public cafe table ordering APIs', () => {
     expect(body.data.order.taxInPaise).toBe(2800)
     expect(body.data.order.totalInPaise).toBe(58800)
   })
+
+  it('rate-limits excessive public order attempts with a clear response', async () => {
+    const fixture = await setupApprovedCafe('cafe-order-rate-limit')
+    const responses = []
+
+    for (let attempt = 0; attempt < 11; attempt += 1) {
+      responses.push(
+        await app().inject({
+          method: 'POST',
+          url: `/api/v1/public/cafes/${fixture.slug}/orders`,
+          remoteAddress: '198.51.100.42',
+          headers: {
+            'idempotency-key': 'rate-limit-order-key',
+          },
+          payload: {
+            tableNumber: '1',
+            items: [{ menuItemId: fixture.item.id, quantity: 1 }],
+          },
+        }),
+      )
+    }
+
+    expect(responses[0]?.statusCode).toBe(201)
+    expect(responses[9]?.statusCode).toBe(200)
+    expect(responses[10]?.statusCode).toBe(429)
+    const body = parseBody<ApiEnvelope<unknown>>(responses[10]!)
+    expect(body.code).toBe('RATE_LIMITED')
+    expect(body.message).toContain('Too many requests')
+  })
 })

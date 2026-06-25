@@ -1,0 +1,46 @@
+import type { FastifyInstance } from 'fastify'
+import { requireAuth } from '../../common/middleware/require-auth'
+import { requirePlatformAdmin } from '../../common/middleware/require-platform-admin'
+import { withSwagger } from '../../common/utils/route-schema'
+import * as controller from './admin.controller'
+
+export const adminRoutes = async (fastify: FastifyInstance) => {
+  const adminOnly = [requireAuth, requirePlatformAdmin]
+
+  fastify.get(
+    '/cafes',
+    {
+      preHandler: adminOnly,
+      schema: withSwagger(
+        ['Admin'],
+        'List platform cafes',
+        'Lists cafes for platform approval and suspension control.',
+        true,
+      ),
+    },
+    controller.listCafes,
+  )
+
+  fastify.patch(
+    '/cafes/:restaurantId/approval',
+    {
+      preHandler: adminOnly,
+      schema: withSwagger(
+        ['Admin'],
+        'Update cafe approval',
+        'Approves or unapproves a cafe marketplace listing.',
+        true,
+      ),
+    },
+    controller.updateCafeApproval,
+  )
+
+  fastify.patch(
+    '/cafes/:restaurantId/status',
+    {
+      preHandler: adminOnly,
+      schema: withSwagger(['Admin'], 'Update cafe status', 'Suspends or reactivates a cafe.', true),
+    },
+    controller.updateCafeStatus,
+  )
+}

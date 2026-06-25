@@ -111,6 +111,22 @@ async function main() {
     },
   })
 
+  const admin = await prisma.user.upsert({
+    where: { email: 'admin@demo.com' },
+    update: {
+      name: 'Platform Admin',
+      passwordHash,
+      role: 'ADMIN',
+      isActive: true,
+    },
+    create: {
+      name: 'Platform Admin',
+      email: 'admin@demo.com',
+      passwordHash,
+      role: 'ADMIN',
+    },
+  })
+
   const kitchen = await prisma.user.upsert({
     where: { email: 'kitchen@demo.com' },
     update: {
@@ -332,6 +348,7 @@ async function main() {
 
   console.log('\nDemo seed complete')
   console.log('Owner login: owner@demo.com / Demo@12345')
+  console.log('Admin login: admin@demo.com / Demo@12345')
   console.log('Kitchen login: kitchen@demo.com / Demo@12345')
   console.log(`restaurantId: ${restaurant.id}`)
   console.log(`branchId: ${activeBranch.id}`)
@@ -339,6 +356,7 @@ async function main() {
   for (const table of tables) {
     console.log(`- ${table.tableLabel ?? table.tableNumber}: id=${table.id} qrUrl=${table.qrUrl}`)
   }
+  void admin
 }
 
 main()

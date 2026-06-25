@@ -14,9 +14,7 @@ export const createMemberSchema = z.object({
   email: z.string().trim().email().toLowerCase(),
   phone: z.string().trim().min(1).optional(),
   password: z.string().min(8),
-  role: z.nativeEnum(UserRole).refine((role) => role !== 'OWNER', {
-    message: 'OWNER members must be created through restaurant ownership transfer',
-  }),
+  role: z.enum([UserRole.MANAGER, UserRole.STAFF, UserRole.KITCHEN]),
   branchId: z.string().uuid().optional(),
 })
 
@@ -28,5 +26,3 @@ export const updateUserSchema = z.object({
 
 export type CreateMemberInput = z.infer<typeof createMemberSchema>
 export type UpdateUserInput = z.infer<typeof updateUserSchema>
-
-

@@ -35,6 +35,7 @@ src/
     tables/
     menu/
     public/
+    admin/
     orders/
     dashboard/
     audit/
@@ -118,8 +119,10 @@ Every endpoint is registered with OpenAPI metadata, response envelopes, and auth
 Seed data creates:
 
 - Owner: `owner@demo.com` / `Demo@12345`
+- Platform admin: `admin@demo.com` / `Demo@12345`
 - Kitchen: `kitchen@demo.com` / `Demo@12345`
 - Restaurant: `Spice Garden Bistro`
+- Public slug: `spice-garden-bistro` (seeded active and approved)
 - Branch: `Main Branch`
 - Tables: `Table 1` through `Table 5`
 - Menu categories and items for starters, mains, biryani, beverages, and desserts
@@ -175,3 +178,13 @@ Covered flows include register/login, invalid login, category/item creation, pub
 - Use persistent logs/metrics around Pino output.
 - Payment and notification modules are intentionally interfaces/placeholders so Razorpay, WhatsApp, SMS, or email can be added without rewriting order logic.
 - Order items store name and price snapshots, so menu edits do not rewrite historical orders.
+
+Detailed production and pilot guidance:
+
+- [Deployment](docs/DEPLOYMENT.md)
+- [Security model](docs/SECURITY.md)
+- [Pilot testing](docs/PILOT_TESTING.md)
+
+Platform administration is exposed at `/api/v1/admin/cafes` and the frontend `/admin` route. Public
+order placement is rate-limited separately through `PUBLIC_ORDER_RATE_LIMIT_MAX` and
+`PUBLIC_ORDER_RATE_LIMIT_WINDOW`.

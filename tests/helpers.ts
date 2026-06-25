@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify'
+import bcrypt from 'bcryptjs'
 
 export const app = () => {
   if (!globalThis.testApp) {
@@ -20,6 +21,33 @@ export type ApiEnvelope<T> = {
 export const authHeader = (token: string) => ({
   authorization: `Bearer ${token}`,
 })
+
+export const createPlatformAdmin = async (
+  fastify: FastifyInstance,
+  suffix = Date.now().toString(),
+) => {
+  const email = `admin-${suffix}@example.com`
+  const password = 'StrongPass123'
+  const passwordHash = await bcrypt.hash(password, 8)
+  await fastify.prisma.user.create({
+    data: {
+      name: 'Platform Admin',
+      email,
+      passwordHash,
+      role: 'ADMIN',
+    },
+  })
+
+  const response = await fastify.inject({
+    method: 'POST',
+    url: '/api/v1/auth/login',
+    payload: { email, password },
+  })
+
+  return parseBody<ApiEnvelope<{ accessToken: string; user: { id: string; role: string } }>>(
+    response,
+  )
+}
 
 export const registerOwner = async (fastify: FastifyInstance, suffix = Date.now().toString()) => {
   const response = await fastify.inject({

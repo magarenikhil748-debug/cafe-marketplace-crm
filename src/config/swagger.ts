@@ -30,6 +30,7 @@ export const swaggerOptions: SwaggerOptions = {
       { name: 'Public' },
       { name: 'Orders' },
       { name: 'Dashboard' },
+      { name: 'Admin' },
     ],
   },
 }
@@ -41,5 +42,3 @@ export const swaggerUiOptions: FastifySwaggerUiOptions = {
     deepLinking: true,
   },
 }
-
-

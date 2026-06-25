@@ -2,6 +2,7 @@ import type { FastifyCorsOptions } from '@fastify/cors'
 import { env } from './env'
 
 const parseOrigins = (value: string): string[] | boolean => {
+  // env validation rejects this permissive mode when NODE_ENV=production.
   if (value.trim() === '*') {
     return true
   }
@@ -18,5 +19,3 @@ export const corsOptions: FastifyCorsOptions = {
   methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Authorization', 'Content-Type', 'Idempotency-Key'],
 }
-
-

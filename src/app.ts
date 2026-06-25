@@ -22,6 +22,7 @@ import { menuRoutes } from './modules/menu/menu.routes'
 import { publicRoutes } from './modules/public/public.routes'
 import { ordersRoutes } from './modules/orders/orders.routes'
 import { dashboardRoutes } from './modules/dashboard/dashboard.routes'
+import { adminRoutes } from './modules/admin/admin.routes'
 
 export const buildApp = async () => {
   const logger =
@@ -36,6 +37,7 @@ export const buildApp = async () => {
 
   const app = Fastify({
     logger,
+    trustProxy: env.TRUST_PROXY,
   })
 
   app.setErrorHandler(errorHandler)
@@ -87,9 +89,7 @@ export const buildApp = async () => {
   await app.register(publicRoutes, { prefix: '/api/v1/public' })
   await app.register(ordersRoutes, { prefix: '/api/v1' })
   await app.register(dashboardRoutes, { prefix: '/api/v1' })
+  await app.register(adminRoutes, { prefix: '/api/v1/admin' })
 
   return app
 }
-
-
-
