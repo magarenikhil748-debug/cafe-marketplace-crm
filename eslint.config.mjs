@@ -5,7 +5,18 @@ import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'node_modules/**', 'coverage/**', '.local/**', '.pnpm-store/**'],
+    ignores: [
+      '**/.next/**',
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/build/**',
+      '**/coverage/**',
+      '**/.turbo/**',
+      '**/generated/**',
+      '.local/**',
+      '.pnpm-store/**',
+      'frontend/**',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
