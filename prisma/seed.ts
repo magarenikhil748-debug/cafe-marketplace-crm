@@ -1,10 +1,38 @@
 import 'dotenv/config'
+import { randomBytes } from 'crypto'
 import bcrypt from 'bcryptjs'
-import { PrismaClient, type FoodType, type UserRole } from '@prisma/client'
-import { buildQrUrl, generateQrToken } from '../src/common/utils/qr-code'
+import { FoodType, PrismaClient, UserRole } from '@prisma/client'
 
 const prisma = new PrismaClient()
-const password = 'Demo@12345'
+const seedCafeName = 'Spice Garden Bistro'
+const seedCafeSlug = 'spice-garden-bistro'
+
+const getRequiredSeedEnv = (name: string) => {
+  const value = process.env[name]?.trim()
+
+  if (!value) {
+    throw new Error(`Missing required seed environment variable: ${name}`)
+  }
+
+  return value
+}
+
+const getSeedCredentials = () => ({
+  adminEmail: getRequiredSeedEnv('SEED_ADMIN_EMAIL').toLowerCase(),
+  adminPassword: getRequiredSeedEnv('SEED_ADMIN_PASSWORD'),
+  ownerEmail: getRequiredSeedEnv('SEED_OWNER_EMAIL').toLowerCase(),
+  ownerPassword: getRequiredSeedEnv('SEED_OWNER_PASSWORD'),
+})
+
+const generateQrToken = () => randomBytes(24).toString('base64url')
+
+const buildQrUrl = (qrToken: string) => {
+  const frontendUrl = (process.env['FRONTEND_URL']?.trim() || 'http://localhost:5173').replace(
+    /\/$/,
+    '',
+  )
+  return `${frontendUrl}/menu/${qrToken}`
+}
 
 const ensureMember = async (input: {
   restaurantId: string
@@ -15,7 +43,7 @@ const ensureMember = async (input: {
   const existing = await prisma.restaurantMember.findFirst({
     where: {
       restaurantId: input.restaurantId,
-      branchId: input.branchId,
+      branchId: input.branchId ?? null,
       userId: input.userId,
     },
   })
@@ -91,64 +119,50 @@ const ensureItem = async (input: {
 }
 
 async function main() {
-  const passwordHash = await bcrypt.hash(password, 10)
+  const seedCredentials = getSeedCredentials()
+  const [adminPasswordHash, ownerPasswordHash] = await Promise.all([
+    bcrypt.hash(seedCredentials.adminPassword, 10),
+    bcrypt.hash(seedCredentials.ownerPassword, 10),
+  ])
 
   const owner = await prisma.user.upsert({
-    where: { email: 'owner@demo.com' },
+    where: { email: seedCredentials.ownerEmail },
     update: {
       name: 'Demo Owner',
       phone: '+919999999990',
-      passwordHash,
-      role: 'OWNER',
+      passwordHash: ownerPasswordHash,
+      role: UserRole.OWNER,
       isActive: true,
     },
     create: {
       name: 'Demo Owner',
-      email: 'owner@demo.com',
+      email: seedCredentials.ownerEmail,
       phone: '+919999999990',
-      passwordHash,
-      role: 'OWNER',
+      passwordHash: ownerPasswordHash,
+      role: UserRole.OWNER,
     },
   })
 
   const admin = await prisma.user.upsert({
-    where: { email: 'admin@demo.com' },
+    where: { email: seedCredentials.adminEmail },
     update: {
       name: 'Platform Admin',
-      passwordHash,
-      role: 'ADMIN',
+      passwordHash: adminPasswordHash,
+      role: UserRole.ADMIN,
       isActive: true,
     },
     create: {
       name: 'Platform Admin',
-      email: 'admin@demo.com',
-      passwordHash,
-      role: 'ADMIN',
-    },
-  })
-
-  const kitchen = await prisma.user.upsert({
-    where: { email: 'kitchen@demo.com' },
-    update: {
-      name: 'Kitchen Display',
-      phone: '+919999999991',
-      passwordHash,
-      role: 'KITCHEN',
-      isActive: true,
-    },
-    create: {
-      name: 'Kitchen Display',
-      email: 'kitchen@demo.com',
-      phone: '+919999999991',
-      passwordHash,
-      role: 'KITCHEN',
+      email: seedCredentials.adminEmail,
+      passwordHash: adminPasswordHash,
+      role: UserRole.ADMIN,
     },
   })
 
   const restaurant = await prisma.restaurant.upsert({
-    where: { slug: 'spice-garden-bistro' },
+    where: { slug: seedCafeSlug },
     update: {
-      name: 'Spice Garden Bistro',
+      name: seedCafeName,
       description: 'A modern Indian bistro serving tandoor favorites, curries, and biryani.',
       ownerId: owner.id,
       phone: '+911122334455',
@@ -163,8 +177,8 @@ async function main() {
       isApproved: true,
     },
     create: {
-      name: 'Spice Garden Bistro',
-      slug: 'spice-garden-bistro',
+      name: seedCafeName,
+      slug: seedCafeSlug,
       description: 'A modern Indian bistro serving tandoor favorites, curries, and biryani.',
       ownerId: owner.id,
       phone: '+911122334455',
@@ -175,6 +189,7 @@ async function main() {
       currency: 'INR',
       taxEnabled: true,
       gstNumber: '29ABCDE1234F1Z5',
+      isActive: true,
       isApproved: true,
       orderSequence: { create: { nextNumber: 1 } },
     },
@@ -201,16 +216,10 @@ async function main() {
 
   const activeBranch = await prisma.branch.update({
     where: { id: branch.id },
-    data: { isActive: true },
+    data: { address: 'MG Road, Bengaluru', phone: '+911122334455', isActive: true },
   })
 
-  await ensureMember({ restaurantId: restaurant.id, userId: owner.id, role: 'OWNER' })
-  await ensureMember({
-    restaurantId: restaurant.id,
-    branchId: activeBranch.id,
-    userId: kitchen.id,
-    role: 'KITCHEN',
-  })
+  await ensureMember({ restaurantId: restaurant.id, userId: owner.id, role: UserRole.OWNER })
 
   const tables = []
   for (let i = 1; i <= 5; i += 1) {
@@ -268,7 +277,7 @@ async function main() {
     name: 'Paneer Tikka',
     description: 'Char-grilled paneer with peppers and house spices.',
     priceInPaise: 28000,
-    foodType: 'VEG',
+    foodType: FoodType.VEG,
     isRecommended: true,
     preparationTimeMinutes: 18,
     sortOrder: 1,
@@ -279,7 +288,7 @@ async function main() {
     name: 'Chicken Tikka',
     description: 'Smoky boneless chicken tikka with mint chutney.',
     priceInPaise: 34000,
-    foodType: 'NON_VEG',
+    foodType: FoodType.NON_VEG,
     isRecommended: true,
     preparationTimeMinutes: 20,
     sortOrder: 2,
@@ -290,7 +299,7 @@ async function main() {
     name: 'Veg Biryani',
     description: 'Dum-cooked vegetables and basmati rice.',
     priceInPaise: 26000,
-    foodType: 'VEG',
+    foodType: FoodType.VEG,
     preparationTimeMinutes: 22,
     sortOrder: 1,
   })
@@ -300,7 +309,7 @@ async function main() {
     name: 'Butter Chicken',
     description: 'Creamy tomato gravy with tender chicken.',
     priceInPaise: 42000,
-    foodType: 'NON_VEG',
+    foodType: FoodType.NON_VEG,
     isRecommended: true,
     preparationTimeMinutes: 24,
     sortOrder: 1,
@@ -311,7 +320,7 @@ async function main() {
     name: 'Dal Tadka',
     description: 'Yellow dal tempered with cumin, garlic, and ghee.',
     priceInPaise: 22000,
-    foodType: 'VEG',
+    foodType: FoodType.VEG,
     preparationTimeMinutes: 15,
     sortOrder: 2,
   })
@@ -321,7 +330,7 @@ async function main() {
     name: 'Garlic Naan',
     description: 'Tandoor naan finished with garlic butter.',
     priceInPaise: 7000,
-    foodType: 'VEG',
+    foodType: FoodType.VEG,
     preparationTimeMinutes: 8,
     sortOrder: 3,
   })
@@ -331,7 +340,7 @@ async function main() {
     name: 'Masala Chaas',
     description: 'Spiced buttermilk with roasted cumin.',
     priceInPaise: 9000,
-    foodType: 'BEVERAGE',
+    foodType: FoodType.BEVERAGE,
     preparationTimeMinutes: 5,
     sortOrder: 1,
   })
@@ -341,22 +350,20 @@ async function main() {
     name: 'Gulab Jamun',
     description: 'Warm khoya dumplings in cardamom syrup.',
     priceInPaise: 12000,
-    foodType: 'VEG',
+    foodType: FoodType.VEG,
     preparationTimeMinutes: 6,
     sortOrder: 1,
   })
 
-  console.log('\nDemo seed complete')
-  console.log('Owner login: owner@demo.com / Demo@12345')
-  console.log('Admin login: admin@demo.com / Demo@12345')
-  console.log('Kitchen login: kitchen@demo.com / Demo@12345')
-  console.log(`restaurantId: ${restaurant.id}`)
-  console.log(`branchId: ${activeBranch.id}`)
-  console.log('Tables and sample QR URLs:')
-  for (const table of tables) {
-    console.log(`- ${table.tableLabel ?? table.tableNumber}: id=${table.id} qrUrl=${table.qrUrl}`)
-  }
-  void admin
+  console.log('\nTavero seed complete')
+  console.log(`Admin user ensured: ${admin.email}`)
+  console.log(`Owner user ensured: ${owner.email}`)
+  console.log(
+    `Cafe ensured: ${restaurant.name} (${restaurant.slug}) active=${restaurant.isActive} approved=${restaurant.isApproved}`,
+  )
+  console.log(`Branch ensured: ${activeBranch.name}`)
+  console.log(`Active tables ensured: ${tables.length}`)
+  console.log('Menu categories and items ensured for public QR ordering.')
 }
 
 main()
