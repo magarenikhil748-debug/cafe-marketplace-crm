@@ -21,18 +21,18 @@ export const listOrdersQuerySchema = z.object({
 
 export const orderItemInputSchema = z.object({
   menuItemId: z.string().uuid(),
-  quantity: z.number().int().positive().max(99),
-  addonIds: z.array(z.string().uuid()).default([]),
-  instructions: z.string().trim().min(1).optional(),
+  quantity: z.number().int().positive().max(20),
+  addonIds: z.array(z.string().uuid()).max(20).default([]),
+  instructions: z.string().trim().min(1).max(500).optional(),
 })
 
 export const createPublicOrderSchema = z.object({
-  qrToken: z.string().trim().min(10),
-  customerName: z.string().trim().min(1).optional(),
-  customerPhone: z.string().trim().min(1).optional(),
+  qrToken: z.string().trim().min(1).max(128),
+  customerName: z.string().trim().min(1).max(120).optional(),
+  customerPhone: z.string().trim().min(1).max(30).optional(),
   orderType: z.nativeEnum(OrderType).default('DINE_IN'),
-  items: z.array(orderItemInputSchema).min(1),
-  specialInstructions: z.string().trim().min(1).optional(),
+  items: z.array(orderItemInputSchema).min(1).max(50),
+  specialInstructions: z.string().trim().min(1).max(1000).optional(),
   idempotencyKey: z.string().trim().min(8).max(120).optional(),
 })
 
@@ -44,5 +44,3 @@ export type ListOrdersQuery = z.infer<typeof listOrdersQuerySchema>
 export type CreatePublicOrderInput = z.infer<typeof createPublicOrderSchema>
 export type OrderItemInput = z.infer<typeof orderItemInputSchema>
 export type UpdateOrderStatusInput = z.infer<typeof updateOrderStatusSchema>
-
-

@@ -8,6 +8,34 @@ export const adminRoutes = async (fastify: FastifyInstance) => {
   const adminOnly = [requireAuth, requirePlatformAdmin]
 
   fastify.get(
+    '/leads',
+    {
+      preHandler: adminOnly,
+      schema: withSwagger(
+        ['Admin'],
+        'List early access leads',
+        'Lists cafe early access requests for platform review.',
+        true,
+      ),
+    },
+    controller.listLeads,
+  )
+
+  fastify.patch(
+    '/leads/:leadId/status',
+    {
+      preHandler: adminOnly,
+      schema: withSwagger(
+        ['Admin'],
+        'Update lead status',
+        'Updates an early access lead review status.',
+        true,
+      ),
+    },
+    controller.updateLeadStatus,
+  )
+
+  fastify.get(
     '/cafes',
     {
       preHandler: adminOnly,

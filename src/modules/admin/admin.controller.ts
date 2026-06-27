@@ -3,9 +3,12 @@ import { AppError, ErrorCodes } from '../../common/errors/app-error'
 import { sendSuccess } from '../../common/utils/api-response'
 import {
   adminCafeParamsSchema,
+  adminLeadParamsSchema,
   listAdminCafesQuerySchema,
+  listAdminLeadsQuerySchema,
   updateCafeApprovalSchema,
   updateCafeStatusSchema,
+  updateLeadStatusSchema,
 } from './admin.schema'
 import { AdminService } from './admin.service'
 
@@ -23,6 +26,25 @@ export const listCafes = async (request: FastifyRequest, reply: FastifyReply) =>
   const cafes = await service.listCafes(query)
 
   return sendSuccess(reply, 'Admin cafes fetched successfully', { cafes })
+}
+
+export const listLeads = async (request: FastifyRequest, reply: FastifyReply) => {
+  requireAdminUserId(request)
+  const query = listAdminLeadsQuerySchema.parse(request.query)
+  const service = new AdminService(request.server.prisma)
+  const leads = await service.listLeads(query)
+
+  return sendSuccess(reply, 'Early access leads fetched successfully', { leads })
+}
+
+export const updateLeadStatus = async (request: FastifyRequest, reply: FastifyReply) => {
+  requireAdminUserId(request)
+  const params = adminLeadParamsSchema.parse(request.params)
+  const input = updateLeadStatusSchema.parse(request.body)
+  const service = new AdminService(request.server.prisma)
+  const lead = await service.updateLeadStatus(params.leadId, input.status)
+
+  return sendSuccess(reply, 'Lead status updated successfully', { lead })
 }
 
 export const updateCafeApproval = async (request: FastifyRequest, reply: FastifyReply) => {

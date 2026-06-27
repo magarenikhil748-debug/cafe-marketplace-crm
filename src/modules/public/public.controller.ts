@@ -1,6 +1,6 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import { sendSuccess } from '../../common/utils/api-response'
-import { cafeSlugParamsSchema, qrTokenParamsSchema } from './public.schema'
+import { cafeSlugParamsSchema, earlyAccessLeadSchema, qrTokenParamsSchema } from './public.schema'
 import { PublicService } from './public.service'
 
 export const listCafes = async (request: FastifyRequest, reply: FastifyReply) => {
@@ -8,6 +8,14 @@ export const listCafes = async (request: FastifyRequest, reply: FastifyReply) =>
   const cafes = await service.listCafes()
 
   return sendSuccess(reply, 'Cafes fetched successfully', { cafes })
+}
+
+export const createEarlyAccessLead = async (request: FastifyRequest, reply: FastifyReply) => {
+  const input = earlyAccessLeadSchema.parse(request.body)
+  const service = new PublicService(request.server.prisma)
+  const lead = await service.createEarlyAccessLead(input)
+
+  return sendSuccess(reply, 'Thanks — Tavero received your early access request.', { lead }, 201)
 }
 
 export const getCafe = async (request: FastifyRequest, reply: FastifyReply) => {

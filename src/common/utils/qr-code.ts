@@ -9,6 +9,11 @@ export const buildQrUrl = (qrToken: string) => {
   return `${frontendUrl}/menu/${qrToken}`
 }
 
+export const buildTableQrUrl = (slug: string, qrToken: string) => {
+  const frontendUrl = env.FRONTEND_URL.replace(/\/$/, '')
+  return `${frontendUrl}/cafe/${encodeURIComponent(slug)}/menu?t=${encodeURIComponent(qrToken)}`
+}
+
 export const buildCafeMenuUrl = (slug: string) => {
   const frontendUrl = env.FRONTEND_URL.replace(/\/$/, '')
   return `${frontendUrl}/cafe/${slug}/menu`

@@ -26,12 +26,12 @@ const getSeedCredentials = () => ({
 
 const generateQrToken = () => randomBytes(24).toString('base64url')
 
-const buildQrUrl = (qrToken: string) => {
+const buildTableQrUrl = (slug: string, qrToken: string) => {
   const frontendUrl = (process.env['FRONTEND_URL']?.trim() || 'http://localhost:5173').replace(
     /\/$/,
     '',
   )
-  return `${frontendUrl}/menu/${qrToken}`
+  return `${frontendUrl}/cafe/${encodeURIComponent(slug)}/menu?t=${encodeURIComponent(qrToken)}`
 }
 
 const ensureMember = async (input: {
@@ -246,11 +246,12 @@ async function main() {
       },
     })
 
-    if (!table.qrUrl) {
+    const expectedQrUrl = buildTableQrUrl(restaurant.slug, table.qrToken)
+    if (table.qrUrl !== expectedQrUrl) {
       tables.push(
         await prisma.diningTable.update({
           where: { id: table.id },
-          data: { qrUrl: buildQrUrl(table.qrToken) },
+          data: { qrUrl: expectedQrUrl },
         }),
       )
     } else {

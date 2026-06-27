@@ -15,6 +15,26 @@ export const publicRoutes = async (fastify: FastifyInstance) => {
     groupId: 'public-order-placement',
   }
 
+  const earlyAccessRateLimit = {
+    max: 5,
+    timeWindow: '1 hour',
+    groupId: 'public-early-access',
+  }
+
+  fastify.post(
+    '/early-access',
+    {
+      config: { rateLimit: earlyAccessRateLimit },
+      schema: withSwagger(
+        ['Public'],
+        'Request early access',
+        'Stores a validated cafe listing request for platform review.',
+        false,
+      ),
+    },
+    controller.createEarlyAccessLead,
+  )
+
   fastify.get(
     '/cafes',
     {
@@ -74,7 +94,7 @@ export const publicRoutes = async (fastify: FastifyInstance) => {
       schema: withSwagger(
         ['Public'],
         'Create cafe order',
-        'Creates an order for an active table selected by table number at an approved cafe.',
+        'Creates an order only from a valid table-specific QR token at an approved cafe.',
         false,
       ),
     },

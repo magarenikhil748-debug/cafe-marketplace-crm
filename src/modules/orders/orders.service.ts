@@ -56,13 +56,17 @@ export class OrdersService {
         qrToken: input.qrToken,
         isActive: true,
         branch: { isActive: true },
-        restaurant: { isActive: true },
+        restaurant: { isActive: true, isApproved: true },
       },
       include: orderTableInclude,
     })
 
     if (!table) {
-      throw new AppError(404, ErrorCodes.QR_INVALID, 'QR code is invalid or inactive')
+      throw new AppError(
+        403,
+        ErrorCodes.INVALID_TABLE_QR,
+        'This ordering link is invalid or expired. Please scan the QR code on your table again.',
+      )
     }
 
     return this.createOrderForTable(
@@ -93,32 +97,23 @@ export class OrdersService {
       throw new AppError(404, ErrorCodes.RESTAURANT_NOT_FOUND, 'Cafe was not found')
     }
 
-    const tables = await this.prisma.diningTable.findMany({
+    const table = await this.prisma.diningTable.findFirst({
       where: {
         restaurantId: cafe.id,
-        tableNumber: input.tableNumber,
+        qrToken: input.qrToken,
         isActive: true,
         branch: { isActive: true },
+        restaurant: { isActive: true, isApproved: true },
       },
       include: orderTableInclude,
-      take: 2,
     })
 
-    if (tables.length === 0) {
-      throw new AppError(404, ErrorCodes.TABLE_NOT_FOUND, 'Table number was not found')
-    }
-
-    if (tables.length > 1) {
-      throw new AppError(
-        409,
-        ErrorCodes.CONFLICT,
-        'Table number is ambiguous across active cafe branches',
-      )
-    }
-
-    const table = tables[0]
     if (!table) {
-      throw new AppError(404, ErrorCodes.TABLE_NOT_FOUND, 'Table number was not found')
+      throw new AppError(
+        403,
+        ErrorCodes.INVALID_TABLE_QR,
+        'This ordering link is invalid or expired. Please scan the QR code on your table again.',
+      )
     }
 
     return this.createOrderForTable(
@@ -134,7 +129,7 @@ export class OrdersService {
         specialInstructions: input.specialInstruction,
         idempotencyKey: input.idempotencyKey,
       },
-      { source: 'cafe', slug, ...input, idempotencyKey: undefined },
+      { source: 'cafe-qr', slug, ...input, idempotencyKey: undefined },
     )
   }
 

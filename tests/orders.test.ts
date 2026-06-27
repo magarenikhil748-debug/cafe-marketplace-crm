@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { app, authHeader, parseBody, setupOrderingFixture, type ApiEnvelope } from './helpers'
 
+let publicOrderRequestCounter = 1
+
 const placeOrder = async (qrToken: string, itemId: string, idempotencyKey?: string) =>
   app().inject({
     method: 'POST',
     url: '/api/v1/public/orders',
+    remoteAddress: `192.0.2.${publicOrderRequestCounter++}`,
     headers: idempotencyKey ? { 'idempotency-key': idempotencyKey } : undefined,
     payload: {
       qrToken,
@@ -14,6 +17,20 @@ const placeOrder = async (qrToken: string, itemId: string, idempotencyKey?: stri
   })
 
 describe('Order APIs', () => {
+  it('rejects a public order without a table QR token', async () => {
+    const response = await app().inject({
+      method: 'POST',
+      url: '/api/v1/public/orders',
+      payload: {
+        items: [{ menuItemId: '00000000-0000-0000-0000-000000000000', quantity: 1 }],
+      },
+    })
+    const body = parseBody<ApiEnvelope<unknown>>(response)
+
+    expect(response.statusCode).toBe(403)
+    expect(body.code).toBe('QR_REQUIRED')
+  })
+
   it('creates an order from a QR token', async () => {
     const fixture = await setupOrderingFixture()
     const response = await placeOrder(fixture.table.qrToken, fixture.item.id)
@@ -56,6 +73,44 @@ describe('Order APIs', () => {
     expect(body.code).toBe('MENU_ITEM_UNAVAILABLE')
   })
 
+  it('rejects unsafe quantities and oversized customer input', async () => {
+    const fixture = await setupOrderingFixture()
+    const quantityResponse = await app().inject({
+      method: 'POST',
+      url: '/api/v1/public/orders',
+      payload: {
+        qrToken: fixture.table.qrToken,
+        items: [{ menuItemId: fixture.item.id, quantity: 21 }],
+      },
+    })
+    expect(quantityResponse.statusCode).toBe(400)
+
+    const customerResponse = await app().inject({
+      method: 'POST',
+      url: '/api/v1/public/orders',
+      payload: {
+        qrToken: fixture.table.qrToken,
+        customerName: 'x'.repeat(121),
+        items: [{ menuItemId: fixture.item.id, quantity: 1 }],
+      },
+    })
+    expect(customerResponse.statusCode).toBe(400)
+  })
+
+  it('rejects a QR token when its cafe is unapproved', async () => {
+    const fixture = await setupOrderingFixture()
+    await app().prisma.restaurant.update({
+      where: { id: fixture.restaurantId },
+      data: { isApproved: false },
+    })
+
+    const response = await placeOrder(fixture.table.qrToken, fixture.item.id)
+    const body = parseBody<ApiEnvelope<unknown>>(response)
+
+    expect(response.statusCode).toBe(403)
+    expect(body.code).toBe('INVALID_TABLE_QR')
+  })
+
   it('rejects an invalid QR token', async () => {
     const response = await placeOrder(
       'invalid-qr-token-value',
@@ -63,8 +118,8 @@ describe('Order APIs', () => {
     )
     const body = parseBody<ApiEnvelope<unknown>>(response)
 
-    expect(response.statusCode).toBe(404)
-    expect(body.code).toBe('QR_INVALID')
+    expect(response.statusCode).toBe(403)
+    expect(body.code).toBe('INVALID_TABLE_QR')
   })
 
   it('updates an order status', async () => {

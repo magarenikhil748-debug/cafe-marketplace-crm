@@ -1,6 +1,7 @@
 import { Prisma, type PrismaClient } from '@prisma/client'
 import { AppError, ErrorCodes } from '../../common/errors/app-error'
 import { buildCafeMenuUrl, createQrCodeDataUrl } from '../../common/utils/qr-code'
+import type { EarlyAccessLeadInput } from './public.schema'
 
 const publicCafeSelect = {
   id: true,
@@ -45,6 +46,20 @@ type PublicCafe = Prisma.RestaurantGetPayload<{ select: typeof publicCafeSelect 
 
 export class PublicService {
   constructor(private readonly prisma: PrismaClient) {}
+
+  async createEarlyAccessLead(input: EarlyAccessLeadInput) {
+    return this.prisma.earlyAccessLead.create({
+      data: {
+        ...input,
+        source: 'website',
+      },
+      select: {
+        id: true,
+        status: true,
+        createdAt: true,
+      },
+    })
+  }
 
   async listCafes() {
     const cafes = await this.prisma.restaurant.findMany({
@@ -235,7 +250,7 @@ export class PublicService {
         qrToken,
         isActive: true,
         branch: { isActive: true },
-        restaurant: { isActive: true },
+        restaurant: { isActive: true, isApproved: true },
       },
       include: {
         restaurant: true,
@@ -244,7 +259,11 @@ export class PublicService {
     })
 
     if (!table) {
-      throw new AppError(404, ErrorCodes.QR_INVALID, 'QR code is invalid or inactive')
+      throw new AppError(
+        404,
+        ErrorCodes.QR_INVALID,
+        'This ordering link is invalid or expired. Please scan the QR code on your table again.',
+      )
     }
 
     return table

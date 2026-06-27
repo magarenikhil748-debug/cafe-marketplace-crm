@@ -1,7 +1,7 @@
-import type { PrismaClient } from '@prisma/client'
+import type { LeadStatus, PrismaClient } from '@prisma/client'
 import { AppError, ErrorCodes } from '../../common/errors/app-error'
 import { AuditService } from '../audit/audit.service'
-import type { ListAdminCafesQuery } from './admin.schema'
+import type { ListAdminCafesQuery, ListAdminLeadsQuery } from './admin.schema'
 
 export class AdminService {
   private readonly audit: AuditService
@@ -46,6 +46,37 @@ export class AdminService {
         },
       },
       orderBy: [{ createdAt: 'desc' }, { name: 'asc' }],
+    })
+  }
+
+  listLeads(query: ListAdminLeadsQuery) {
+    return this.prisma.earlyAccessLead.findMany({
+      where: { status: query.status },
+      orderBy: [{ createdAt: 'desc' }],
+      select: {
+        id: true,
+        cafeName: true,
+        ownerName: true,
+        contact: true,
+        location: true,
+        note: true,
+        status: true,
+        source: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    })
+  }
+
+  async updateLeadStatus(leadId: string, status: LeadStatus) {
+    const lead = await this.prisma.earlyAccessLead.findUnique({ where: { id: leadId } })
+    if (!lead) {
+      throw new AppError(404, ErrorCodes.LEAD_NOT_FOUND, 'Early access lead was not found')
+    }
+
+    return this.prisma.earlyAccessLead.update({
+      where: { id: leadId },
+      data: { status },
     })
   }
 

@@ -33,6 +33,10 @@ describe('Menu APIs', () => {
     const table = await createTable(app(), token, branch.id)
     const category = await createCategory(app(), token, restaurantId)
     await createItem(app(), token, category.id)
+    await app().prisma.restaurant.update({
+      where: { id: restaurantId },
+      data: { isApproved: true },
+    })
 
     const response = await app().inject({
       method: 'GET',
@@ -53,6 +57,10 @@ describe('Menu APIs', () => {
     const table = await createTable(app(), token, branch.id)
     const category = await createCategory(app(), token, restaurantId)
     const item = await createItem(app(), token, category.id)
+    await app().prisma.restaurant.update({
+      where: { id: restaurantId },
+      data: { isApproved: true },
+    })
 
     await app().inject({
       method: 'PATCH',

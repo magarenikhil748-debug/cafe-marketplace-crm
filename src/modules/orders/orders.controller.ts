@@ -24,7 +24,23 @@ const extractIdempotencyKey = (request: FastifyRequest) => {
   return Array.isArray(headerValue) ? headerValue[0] : headerValue
 }
 
+const requireTableQrToken = (body: unknown) => {
+  const qrToken =
+    typeof body === 'object' && body !== null && 'qrToken' in body
+      ? (body as { qrToken?: unknown }).qrToken
+      : undefined
+
+  if (typeof qrToken !== 'string' || qrToken.trim().length === 0) {
+    throw new AppError(
+      403,
+      ErrorCodes.QR_REQUIRED,
+      'Please scan the QR code on your table to place an order.',
+    )
+  }
+}
+
 export const createPublicOrder = async (request: FastifyRequest, reply: FastifyReply) => {
+  requireTableQrToken(request.body)
   const body = createPublicOrderSchema.parse({
     ...(request.body as Record<string, unknown>),
     idempotencyKey:
@@ -47,6 +63,7 @@ export const createPublicOrder = async (request: FastifyRequest, reply: FastifyR
 }
 
 export const createCafeOrder = async (request: FastifyRequest, reply: FastifyReply) => {
+  requireTableQrToken(request.body)
   const params = cafeSlugParamsSchema.parse(request.params)
   const body = cafeTableOrderSchema.parse({
     ...(request.body as Record<string, unknown>),

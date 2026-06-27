@@ -1,7 +1,7 @@
 import type { PrismaClient } from '@prisma/client'
 import { AppError, ErrorCodes } from '../../common/errors/app-error'
 import { ensureRestaurantRole } from '../../common/middleware/require-role'
-import { buildQrUrl, createQrCodeDataUrl, generateQrToken } from '../../common/utils/qr-code'
+import { buildTableQrUrl, createQrCodeDataUrl, generateQrToken } from '../../common/utils/qr-code'
 import { AuditService } from '../audit/audit.service'
 import type { CreateTableInput, UpdateTableInput } from './tables.schema'
 
@@ -24,7 +24,7 @@ export class TablesService {
         tableNumber: input.tableNumber,
         tableLabel: input.tableLabel,
         qrToken,
-        qrUrl: buildQrUrl(qrToken),
+        qrUrl: buildTableQrUrl(branch.restaurant.slug, qrToken),
       },
     })
 
@@ -39,10 +39,18 @@ export class TablesService {
       'KITCHEN',
     ])
 
-    return this.prisma.diningTable.findMany({
+    const tables = await this.prisma.diningTable.findMany({
       where: { branchId, isActive: includeInactive ? undefined : true },
       orderBy: [{ tableNumber: 'asc' }, { createdAt: 'asc' }],
+      include: { restaurant: { select: { slug: true } } },
     })
+
+    return Promise.all(
+      tables.map(({ restaurant, ...table }) => {
+        const qrUrl = buildTableQrUrl(restaurant.slug, table.qrToken)
+        return this.withQrCode({ ...table, qrUrl })
+      }),
+    )
   }
 
   async get(userId: string, tableId: string) {
@@ -53,7 +61,11 @@ export class TablesService {
       'KITCHEN',
     ])
 
-    return this.withQrCode(table)
+    const { restaurant, ...tableData } = table
+    return this.withQrCode({
+      ...tableData,
+      qrUrl: buildTableQrUrl(restaurant.slug, table.qrToken),
+    })
   }
 
   async update(userId: string, tableId: string, input: UpdateTableInput) {
@@ -62,7 +74,12 @@ export class TablesService {
 
     return this.prisma.diningTable.update({
       where: { id: tableId },
-      data: input,
+      data: {
+        ...input,
+        ...(input.isActive === true
+          ? { qrUrl: buildTableQrUrl(table.restaurant.slug, table.qrToken) }
+          : {}),
+      },
     })
   }
 
@@ -85,7 +102,7 @@ export class TablesService {
       where: { id: tableId },
       data: {
         qrToken,
-        qrUrl: buildQrUrl(qrToken),
+        qrUrl: buildTableQrUrl(table.restaurant.slug, qrToken),
       },
     })
 
@@ -105,6 +122,7 @@ export class TablesService {
   private async getActiveBranch(branchId: string) {
     const branch = await this.prisma.branch.findFirst({
       where: { id: branchId, isActive: true, restaurant: { isActive: true } },
+      include: { restaurant: { select: { slug: true } } },
     })
     if (!branch) {
       throw new AppError(404, ErrorCodes.NOT_FOUND, 'Branch was not found')
@@ -120,6 +138,7 @@ export class TablesService {
         restaurant: { isActive: true },
         branch: { isActive: true },
       },
+      include: { restaurant: { select: { slug: true } } },
     })
     if (!table) {
       throw new AppError(404, ErrorCodes.TABLE_NOT_FOUND, 'Table was not found')
@@ -134,6 +153,7 @@ export class TablesService {
         restaurant: { isActive: true },
         branch: { isActive: true },
       },
+      include: { restaurant: { select: { slug: true } } },
     })
     if (!table) {
       throw new AppError(404, ErrorCodes.TABLE_NOT_FOUND, 'Table was not found')

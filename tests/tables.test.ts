@@ -16,6 +16,22 @@ type TableRecord = {
 }
 
 describe('Table management APIs', () => {
+  it('creates a table-specific secure ordering URL', async () => {
+    const registered = await registerOwner(app(), 'table-secure-qr')
+    const branch = await createBranch(
+      app(),
+      registered.data.accessToken,
+      registered.data.restaurant.id,
+    )
+    const table = await createTable(app(), registered.data.accessToken, branch.id)
+
+    expect(table.qrToken).toHaveLength(32)
+    expect(table.qrUrl).toContain(
+      `/cafe/${registered.data.restaurant.slug}/menu?t=${encodeURIComponent(table.qrToken)}`,
+    )
+    expect(table.qrUrl).not.toContain(table.id)
+  })
+
   it('lists inactive tables on request and allows a manager to reactivate them', async () => {
     const registered = await registerOwner(app(), 'table-reactivation')
     const token = registered.data.accessToken

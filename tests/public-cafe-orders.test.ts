@@ -51,7 +51,7 @@ const setupApprovedCafe = async (suffix: string) => {
 
 const placeCafeOrder = (
   slug: string,
-  tableNumber: string,
+  qrToken: string,
   menuItemId: string,
   overrides: Record<string, unknown> = {},
 ) =>
@@ -59,7 +59,7 @@ const placeCafeOrder = (
     method: 'POST',
     url: `/api/v1/public/cafes/${slug}/orders`,
     payload: {
-      tableNumber,
+      qrToken,
       customerName: 'Cafe Guest',
       customerPhone: '+919999999998',
       specialInstruction: 'Less spicy',
@@ -105,9 +105,9 @@ describe('Public cafe table ordering APIs', () => {
     expect(body.data.tables[0]).not.toHaveProperty('qrUrl')
   })
 
-  it('places an order using a selected cafe table number', async () => {
+  it('places an order using a valid table QR token', async () => {
     const fixture = await setupApprovedCafe('cafe-order-success')
-    const response = await placeCafeOrder(fixture.slug, '1', fixture.item.id)
+    const response = await placeCafeOrder(fixture.slug, fixture.table.qrToken, fixture.item.id)
     const body = parseBody<ApiEnvelope<{ order: CafeOrder }>>(response)
 
     expect(response.statusCode).toBe(201)
@@ -137,27 +137,78 @@ describe('Public cafe table ordering APIs', () => {
     const category = await createCategory(app(), token, restaurantId)
     const item = await createItem(app(), token, category.id)
 
-    const response = await placeCafeOrder(registered.data.restaurant.slug, '1', item.id)
+    const table = await app().prisma.diningTable.findFirstOrThrow({
+      where: { restaurantId },
+    })
+    const response = await placeCafeOrder(registered.data.restaurant.slug, table.qrToken, item.id)
     const body = parseBody<ApiEnvelope<unknown>>(response)
 
     expect(response.statusCode).toBe(404)
     expect(body.code).toBe('RESTAURANT_NOT_FOUND')
   })
 
-  it('rejects an invalid table number', async () => {
-    const fixture = await setupApprovedCafe('cafe-invalid-table')
-    const response = await placeCafeOrder(fixture.slug, '999', fixture.item.id)
+  it('rejects order placement without a table QR token', async () => {
+    const fixture = await setupApprovedCafe('cafe-missing-qr')
+    const response = await app().inject({
+      method: 'POST',
+      url: `/api/v1/public/cafes/${fixture.slug}/orders`,
+      payload: { items: [{ menuItemId: fixture.item.id, quantity: 1 }] },
+    })
     const body = parseBody<ApiEnvelope<unknown>>(response)
 
-    expect(response.statusCode).toBe(404)
-    expect(body.code).toBe('TABLE_NOT_FOUND')
+    expect(response.statusCode).toBe(403)
+    expect(body.code).toBe('QR_REQUIRED')
+    expect(body.message).toContain('scan the QR code')
+  })
+
+  it('rejects an invalid table QR token', async () => {
+    const fixture = await setupApprovedCafe('cafe-invalid-qr')
+    const response = await placeCafeOrder(fixture.slug, 'invalid-token', fixture.item.id)
+    const body = parseBody<ApiEnvelope<unknown>>(response)
+
+    expect(response.statusCode).toBe(403)
+    expect(body.code).toBe('INVALID_TABLE_QR')
+    expect(body.message).toContain('invalid or expired')
+  })
+
+  it('rejects a QR token for an inactive table', async () => {
+    const fixture = await setupApprovedCafe('cafe-inactive-table-qr')
+    await app().prisma.diningTable.update({
+      where: { id: fixture.table.id },
+      data: { isActive: false },
+    })
+
+    const response = await placeCafeOrder(fixture.slug, fixture.table.qrToken, fixture.item.id)
+    const body = parseBody<ApiEnvelope<unknown>>(response)
+
+    expect(response.statusCode).toBe(403)
+    expect(body.code).toBe('INVALID_TABLE_QR')
+  })
+
+  it('rejects a valid QR token that belongs to another cafe', async () => {
+    const firstCafe = await setupApprovedCafe('cafe-token-owner')
+    const secondCafe = await setupApprovedCafe('cafe-token-other')
+
+    const response = await placeCafeOrder(
+      firstCafe.slug,
+      secondCafe.table.qrToken,
+      firstCafe.item.id,
+    )
+    const body = parseBody<ApiEnvelope<unknown>>(response)
+
+    expect(response.statusCode).toBe(403)
+    expect(body.code).toBe('INVALID_TABLE_QR')
   })
 
   it('rejects a menu item that belongs to another cafe', async () => {
     const firstCafe = await setupApprovedCafe('cafe-item-owner')
     const secondCafe = await setupApprovedCafe('cafe-item-other')
 
-    const response = await placeCafeOrder(firstCafe.slug, '1', secondCafe.item.id)
+    const response = await placeCafeOrder(
+      firstCafe.slug,
+      firstCafe.table.qrToken,
+      secondCafe.item.id,
+    )
     const body = parseBody<ApiEnvelope<unknown>>(response)
 
     expect(response.statusCode).toBe(400)
@@ -166,7 +217,7 @@ describe('Public cafe table ordering APIs', () => {
 
   it('calculates item prices and totals from the database', async () => {
     const fixture = await setupApprovedCafe('cafe-server-price')
-    const response = await placeCafeOrder(fixture.slug, '1', fixture.item.id, {
+    const response = await placeCafeOrder(fixture.slug, fixture.table.qrToken, fixture.item.id, {
       subtotalInPaise: 1,
       taxInPaise: 0,
       totalInPaise: 1,
@@ -203,7 +254,7 @@ describe('Public cafe table ordering APIs', () => {
             'idempotency-key': 'rate-limit-order-key',
           },
           payload: {
-            tableNumber: '1',
+            qrToken: fixture.table.qrToken,
             items: [{ menuItemId: fixture.item.id, quantity: 1 }],
           },
         }),

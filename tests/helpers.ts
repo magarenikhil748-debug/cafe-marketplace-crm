@@ -164,5 +164,10 @@ export const setupOrderingFixture = async () => {
   const category = await createCategory(fastify, token, restaurantId)
   const item = await createItem(fastify, token, category.id)
 
+  await fastify.prisma.restaurant.update({
+    where: { id: restaurantId },
+    data: { isApproved: true },
+  })
+
   return { fastify, token, restaurantId, branch, table, category, item }
 }
