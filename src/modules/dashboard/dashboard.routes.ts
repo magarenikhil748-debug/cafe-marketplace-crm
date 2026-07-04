@@ -5,6 +5,20 @@ import * as controller from './dashboard.controller'
 
 export const dashboardRoutes = async (fastify: FastifyInstance) => {
   fastify.get(
+    '/restaurants/:restaurantId/analytics/summary',
+    {
+      preHandler: [requireAuth],
+      schema: withSwagger(
+        ['Dashboard'],
+        'Owner analytics summary',
+        'Returns today activity, seven-day trends, top items, and recent orders for one restaurant.',
+        true,
+      ),
+    },
+    controller.analyticsSummary,
+  )
+
+  fastify.get(
     '/restaurants/:restaurantId/dashboard/today',
     {
       preHandler: [requireAuth],
@@ -46,5 +60,3 @@ export const dashboardRoutes = async (fastify: FastifyInstance) => {
     controller.hourlySales,
   )
 }
-
-
