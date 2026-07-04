@@ -26,7 +26,7 @@ character. In Railway's variable editor, paste it as one value. A small Prisma p
 (`connection_limit=5`) is a safe starting point for one instance; tune it against the database
 provider's connection limit.
 
-Optional placeholders:
+Optional integrations:
 
 ```env
 SENTRY_DSN=
@@ -35,9 +35,11 @@ CLOUDINARY_API_KEY=
 CLOUDINARY_API_SECRET=
 ```
 
-Sentry and Cloudinary SDKs are not installed in this checkpoint. These variables document the
-production contract without making the working application depend on an unfinished integration.
-Cafe and menu image fields continue to accept hosted HTTPS URLs.
+Sentry remains optional. All three Cloudinary variables are required only when owners use direct
+cafe photo uploads; missing values return a clear error from the upload endpoint without affecting
+the rest of the application. Keep `CLOUDINARY_API_SECRET` on Railway only—never expose it through a
+`NEXT_PUBLIC_*` variable. Uploaded cafe images use `tavero/cafes/<restaurantId>/` folders. Existing
+hosted HTTPS image URLs and Tavero presets remain supported.
 
 ## Database migration
 
@@ -63,13 +65,14 @@ NEXT_PUBLIC_APP_URL=https://your-frontend.example
 NEXT_PUBLIC_POSTHOG_KEY=
 NEXT_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
 NEXT_PUBLIC_SENTRY_DSN=
-NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=
-NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET=
 ```
 
 Redeploy after changing any `NEXT_PUBLIC_*` value because Next.js embeds them at build time.
 `NEXT_PUBLIC_APP_URL` and backend `FRONTEND_URL` must describe the same public frontend. QR codes
 generated with localhost must be regenerated/reloaded before printing.
+
+Cafe uploads are signed by the backend. Do not configure a Cloudinary secret or unsigned upload
+preset in Vercel.
 
 ## Railway commands
 

@@ -1,5 +1,6 @@
 import cors from '@fastify/cors'
 import helmet from '@fastify/helmet'
+import multipart from '@fastify/multipart'
 import swagger from '@fastify/swagger'
 import swaggerUi from '@fastify/swagger-ui'
 import Fastify from 'fastify'
@@ -23,6 +24,7 @@ import { publicRoutes } from './modules/public/public.routes'
 import { ordersRoutes } from './modules/orders/orders.routes'
 import { dashboardRoutes } from './modules/dashboard/dashboard.routes'
 import { adminRoutes } from './modules/admin/admin.routes'
+import { CAFE_IMAGE_MAX_BYTES } from './modules/restaurants/cafe-image-upload.service'
 
 export const buildApp = async () => {
   const logger =
@@ -46,6 +48,14 @@ export const buildApp = async () => {
   await app.register(authPlugin)
   await app.register(cors, corsOptions)
   await app.register(helmet)
+  await app.register(multipart, {
+    limits: {
+      fileSize: CAFE_IMAGE_MAX_BYTES,
+      files: 1,
+      fields: 0,
+      parts: 1,
+    },
+  })
   await app.register(rateLimitPlugin)
   await app.register(swagger, swaggerOptions)
   await app.register(swaggerUi, swaggerUiOptions)
@@ -63,7 +73,7 @@ export const buildApp = async () => {
     },
     async (_request, reply) => {
       try {
-        await (app as any).prisma.$queryRawUnsafe('SELECT 1')
+        await app.prisma.$queryRawUnsafe('SELECT 1')
         return sendSuccess(reply, 'Application is healthy', {
           app: 'up',
           database: 'up',

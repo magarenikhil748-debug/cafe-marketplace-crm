@@ -55,6 +55,20 @@ export const restaurantsRoutes = async (fastify: FastifyInstance) => {
     controller.updateRestaurant,
   )
 
+  fastify.post(
+    '/restaurants/:restaurantId/images',
+    {
+      preHandler: [requireAuth],
+      schema: withSwagger(
+        ['Restaurants'],
+        'Upload cafe image',
+        'Uploads one owner-authorized JPEG, PNG, or WebP image (maximum 5 MB).',
+        true,
+      ),
+    },
+    controller.uploadRestaurantImage,
+  )
+
   fastify.delete(
     '/restaurants/:restaurantId',
     {
@@ -69,5 +83,3 @@ export const restaurantsRoutes = async (fastify: FastifyInstance) => {
     controller.deleteRestaurant,
   )
 }
-
-
