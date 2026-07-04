@@ -31,6 +31,20 @@ export const menuRoutes = async (fastify: FastifyInstance) => {
     controller.updateCategory,
   )
 
+  fastify.patch(
+    '/categories/:categoryId/image',
+    {
+      preHandler: [requireAuth],
+      schema: withSwagger(
+        ['Menu'],
+        'Update category image',
+        'Updates or removes a menu category image.',
+        true,
+      ),
+    },
+    controller.updateCategoryImage,
+  )
+
   fastify.delete(
     '/categories/:categoryId',
     {
@@ -88,6 +102,34 @@ export const menuRoutes = async (fastify: FastifyInstance) => {
       schema: withSwagger(['Menu'], 'Update item', 'Updates a menu item.', true),
     },
     controller.updateItem,
+  )
+
+  fastify.patch(
+    '/items/:itemId/image',
+    {
+      preHandler: [requireAuth],
+      schema: withSwagger(
+        ['Menu'],
+        'Update menu item image',
+        'Updates or removes one menu item image.',
+        true,
+      ),
+    },
+    controller.updateItemImage,
+  )
+
+  fastify.patch(
+    '/restaurants/:restaurantId/items/images/bulk',
+    {
+      preHandler: [requireAuth],
+      schema: withSwagger(
+        ['Menu'],
+        'Bulk update menu item images',
+        'Transactionally assigns uploaded image URLs to up to 30 menu items.',
+        true,
+      ),
+    },
+    controller.bulkUpdateItemImages,
   )
 
   fastify.delete(

@@ -4,6 +4,7 @@ import { ensureRestaurantRole } from '../../common/middleware/require-role'
 import { AuditService } from '../audit/audit.service'
 import type {
   BulkCreateItemsInput,
+  BulkUpdateItemImagesInput,
   CreateAddonGroupInput,
   CreateAddonInput,
   CreateCategoryInput,
@@ -55,6 +56,28 @@ export class MenuService {
       where: { id: categoryId },
       data: input,
     })
+  }
+
+  async updateCategoryImage(userId: string, categoryId: string, imageUrl: string | null) {
+    const category = await this.getCategory(categoryId)
+    await ensureRestaurantRole(this.prisma, userId, category.restaurantId, ['MANAGER', 'STAFF'])
+
+    const updated = await this.prisma.menuCategory.update({
+      where: { id: categoryId },
+      data: { imageUrl },
+    })
+
+    await this.audit.log({
+      restaurantId: updated.restaurantId,
+      branchId: updated.branchId,
+      userId,
+      action: 'menu.category_image_updated',
+      entityType: 'MenuCategory',
+      entityId: updated.id,
+      metadata: { hasImage: Boolean(imageUrl) },
+    })
+
+    return updated
   }
 
   async deleteCategory(userId: string, categoryId: string) {
@@ -181,6 +204,72 @@ export class MenuService {
     })
 
     return item
+  }
+
+  async updateItemImage(userId: string, itemId: string, imageUrl: string | null) {
+    const existing = await this.getActiveItem(itemId)
+    await ensureRestaurantRole(this.prisma, userId, existing.restaurantId, ['MANAGER', 'STAFF'])
+
+    const item = await this.prisma.menuItem.update({
+      where: { id: itemId },
+      data: { imageUrl },
+    })
+
+    await this.audit.log({
+      restaurantId: item.restaurantId,
+      branchId: item.branchId,
+      userId,
+      action: 'menu.item_image_updated',
+      entityType: 'MenuItem',
+      entityId: item.id,
+      metadata: { hasImage: Boolean(imageUrl) },
+    })
+
+    return item
+  }
+
+  async bulkUpdateItemImages(
+    userId: string,
+    restaurantId: string,
+    input: BulkUpdateItemImagesInput,
+  ) {
+    await ensureRestaurantRole(this.prisma, userId, restaurantId, ['MANAGER', 'STAFF'])
+    const itemIds = input.items.map((item) => item.itemId)
+    const ownedItems = await this.prisma.menuItem.findMany({
+      where: { id: { in: itemIds }, restaurantId, isActive: true },
+      select: { id: true },
+    })
+
+    if (ownedItems.length !== itemIds.length) {
+      throw new AppError(
+        403,
+        ErrorCodes.AUTH_FORBIDDEN,
+        'One or more menu items do not belong to this restaurant',
+      )
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const items = await Promise.all(
+        input.items.map((inputItem) =>
+          tx.menuItem.update({
+            where: { id: inputItem.itemId },
+            data: { imageUrl: inputItem.imageUrl },
+          }),
+        ),
+      )
+
+      await tx.auditLog.create({
+        data: {
+          restaurantId,
+          userId,
+          action: 'menu.item_images_bulk_updated',
+          entityType: 'MenuItem',
+          metadata: { count: items.length },
+        },
+      })
+
+      return items
+    })
   }
 
   async deleteItem(userId: string, itemId: string) {

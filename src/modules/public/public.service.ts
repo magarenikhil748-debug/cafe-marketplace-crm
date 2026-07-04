@@ -217,6 +217,7 @@ export class PublicService {
           id: category.id,
           name: category.name,
           description: category.description,
+          imageUrl: category.imageUrl,
           sortOrder: category.sortOrder,
           items: category.items.map((item) => ({
             id: item.id,
@@ -295,6 +296,7 @@ export class PublicService {
         branchId: category.branchId,
         name: category.name,
         description: category.description,
+        imageUrl: category.imageUrl,
         sortOrder: category.sortOrder,
         items: category.items.map((item) => ({
           id: item.id,

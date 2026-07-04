@@ -194,6 +194,7 @@ model MenuCategory {
   branchId     String?  @db.Uuid
   name         String
   description  String?
+  imageUrl     String?
   sortOrder    Int      @default(0)
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())

@@ -4,6 +4,7 @@ import { sendSuccess } from '../../common/utils/api-response'
 import {
   addonGroupParamsSchema,
   addonParamsSchema,
+  bulkUpdateItemImagesSchema,
   categoryParamsSchema,
   bulkCreateItemsSchema,
   createAddonGroupSchema,
@@ -18,6 +19,7 @@ import {
   updateAvailabilitySchema,
   updateCategorySchema,
   updateItemSchema,
+  updateMenuImageSchema,
 } from './menu.schema'
 import { MenuService } from './menu.service'
 
@@ -55,6 +57,16 @@ export const updateCategory = async (request: FastifyRequest, reply: FastifyRepl
   const category = await service.updateCategory(userId, params.categoryId, input)
 
   return sendSuccess(reply, 'Menu category updated successfully', { category })
+}
+
+export const updateCategoryImage = async (request: FastifyRequest, reply: FastifyReply) => {
+  const userId = requireUserId(request)
+  const params = categoryParamsSchema.parse(request.params)
+  const input = updateMenuImageSchema.parse(request.body)
+  const service = new MenuService(request.server.prisma)
+  const category = await service.updateCategoryImage(userId, params.categoryId, input.imageUrl)
+
+  return sendSuccess(reply, 'Menu category image updated successfully', { category })
 }
 
 export const deleteCategory = async (request: FastifyRequest, reply: FastifyReply) => {
@@ -113,6 +125,26 @@ export const updateItem = async (request: FastifyRequest, reply: FastifyReply) =
   const item = await service.updateItem(userId, params.itemId, input)
 
   return sendSuccess(reply, 'Menu item updated successfully', { item })
+}
+
+export const updateItemImage = async (request: FastifyRequest, reply: FastifyReply) => {
+  const userId = requireUserId(request)
+  const params = itemParamsSchema.parse(request.params)
+  const input = updateMenuImageSchema.parse(request.body)
+  const service = new MenuService(request.server.prisma)
+  const item = await service.updateItemImage(userId, params.itemId, input.imageUrl)
+
+  return sendSuccess(reply, 'Menu item image updated successfully', { item })
+}
+
+export const bulkUpdateItemImages = async (request: FastifyRequest, reply: FastifyReply) => {
+  const userId = requireUserId(request)
+  const params = restaurantParamsSchema.parse(request.params)
+  const input = bulkUpdateItemImagesSchema.parse(request.body)
+  const service = new MenuService(request.server.prisma)
+  const items = await service.bulkUpdateItemImages(userId, params.restaurantId, input)
+
+  return sendSuccess(reply, 'Menu item images updated successfully', { items })
 }
 
 export const deleteItem = async (request: FastifyRequest, reply: FastifyReply) => {

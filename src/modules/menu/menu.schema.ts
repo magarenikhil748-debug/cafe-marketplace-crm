@@ -1,6 +1,14 @@
 import { FoodType } from '@prisma/client'
 import { z } from 'zod'
 
+const httpImageUrl = z
+  .string()
+  .trim()
+  .url()
+  .refine((value) => ['http:', 'https:'].includes(new URL(value).protocol), {
+    message: 'Image URL must use HTTP or HTTPS',
+  })
+
 export const restaurantParamsSchema = z.object({
   restaurantId: z.string().uuid(),
 })
@@ -31,10 +39,12 @@ export const createCategorySchema = z.object({
   branchId: z.string().uuid().optional(),
   name: z.string().trim().min(2),
   description: z.string().trim().min(1).optional(),
+  imageUrl: httpImageUrl.optional(),
   sortOrder: z.number().int().default(0),
 })
 
 export const updateCategorySchema = createCategorySchema.partial().extend({
+  imageUrl: httpImageUrl.nullable().optional(),
   isActive: z.boolean().optional(),
 })
 
@@ -43,7 +53,7 @@ export const createItemSchema = z.object({
   name: z.string().trim().min(2),
   description: z.string().trim().min(1).optional(),
   priceInPaise: z.number().int().nonnegative(),
-  imageUrl: z.string().url().optional(),
+  imageUrl: httpImageUrl.optional(),
   foodType: z.nativeEnum(FoodType),
   isAvailable: z.boolean().default(true),
   isRecommended: z.boolean().default(false),
@@ -61,7 +71,27 @@ export const bulkCreateItemsSchema = z.object({
   items: z.array(bulkCreateItemSchema).min(1).max(100),
 })
 
-export const updateItemSchema = createItemSchema.partial()
+export const updateItemSchema = createItemSchema.partial().extend({
+  imageUrl: httpImageUrl.nullable().optional(),
+})
+
+export const updateMenuImageSchema = z.object({
+  imageUrl: httpImageUrl.nullable(),
+})
+
+const bulkItemImageSchema = z.object({
+  itemId: z.string().uuid(),
+  imageUrl: httpImageUrl,
+})
+
+export const bulkUpdateItemImagesSchema = z
+  .object({
+    items: z.array(bulkItemImageSchema).min(1).max(30),
+  })
+  .refine((input) => new Set(input.items.map((item) => item.itemId)).size === input.items.length, {
+    message: 'Each menu item can only be assigned once per batch',
+    path: ['items'],
+  })
 
 export const updateAvailabilitySchema = z.object({
   isAvailable: z.boolean(),
@@ -108,6 +138,8 @@ export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>
 export type CreateItemInput = z.infer<typeof createItemSchema>
 export type BulkCreateItemsInput = z.infer<typeof bulkCreateItemsSchema>
 export type UpdateItemInput = z.infer<typeof updateItemSchema>
+export type UpdateMenuImageInput = z.infer<typeof updateMenuImageSchema>
+export type BulkUpdateItemImagesInput = z.infer<typeof bulkUpdateItemImagesSchema>
 export type CreateAddonGroupInput = z.infer<typeof createAddonGroupSchema>
 export type UpdateAddonGroupInput = z.infer<typeof updateAddonGroupSchema>
 export type CreateAddonInput = z.infer<typeof createAddonSchema>

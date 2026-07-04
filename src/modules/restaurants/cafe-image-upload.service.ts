@@ -109,7 +109,7 @@ export class CafeImageUploadService {
   constructor(private readonly prisma: PrismaClient) {}
 
   async authorize(userId: string, restaurantId: string) {
-    await ensureRestaurantRole(this.prisma, userId, restaurantId, ['MANAGER'])
+    await ensureRestaurantRole(this.prisma, userId, restaurantId, ['MANAGER', 'STAFF'])
   }
 
   async upload(restaurantId: string, input: UploadInput): Promise<CafeImageUpload> {
