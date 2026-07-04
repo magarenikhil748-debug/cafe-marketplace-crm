@@ -3,6 +3,7 @@ import { AppError, ErrorCodes } from '../../common/errors/app-error'
 import { ensureRestaurantRole } from '../../common/middleware/require-role'
 import { AuditService } from '../audit/audit.service'
 import type {
+  BulkCreateItemsInput,
   CreateAddonGroupInput,
   CreateAddonInput,
   CreateCategoryInput,
@@ -92,6 +93,41 @@ export class MenuService {
     })
 
     return item
+  }
+
+  async createItemsBulk(userId: string, categoryId: string, input: BulkCreateItemsInput) {
+    const category = await this.getCategory(categoryId)
+    await ensureRestaurantRole(this.prisma, userId, category.restaurantId, ['MANAGER'])
+
+    const branchIds = [...new Set(input.items.map((item) => item.branchId).filter(Boolean))]
+    for (const branchId of branchIds) {
+      await this.ensureBranchBelongsToRestaurant(category.restaurantId, branchId)
+    }
+
+    const items = await this.prisma.$transaction(
+      input.items.map((item) =>
+        this.prisma.menuItem.create({
+          data: {
+            ...item,
+            restaurantId: category.restaurantId,
+            branchId: item.branchId ?? category.branchId,
+            categoryId,
+          },
+        }),
+      ),
+    )
+
+    await this.audit.log({
+      restaurantId: category.restaurantId,
+      branchId: category.branchId,
+      userId,
+      action: 'menu.items_bulk_created',
+      entityType: 'MenuItem',
+      entityId: null,
+      metadata: { count: items.length, categoryId },
+    })
+
+    return items
   }
 
   async listItems(userId: string, restaurantId: string, query: ListItemsQuery) {
@@ -314,5 +350,3 @@ export class MenuService {
     return addon
   }
 }
-
-

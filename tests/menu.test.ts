@@ -25,6 +25,41 @@ describe('Menu APIs', () => {
     expect(item.priceInPaise).toBe(28000)
   })
 
+  it('bulk creates reviewed items in one transaction', async () => {
+    const registered = await registerOwner(app(), 'menu-bulk-create')
+    const category = await createCategory(
+      app(),
+      registered.data.accessToken,
+      registered.data.restaurant.id,
+    )
+
+    const response = await app().inject({
+      method: 'POST',
+      url: `/api/v1/categories/${category.id}/items/bulk`,
+      headers: authHeader(registered.data.accessToken),
+      payload: {
+        items: [
+          {
+            name: 'Cold Coffee',
+            priceInPaise: 12000,
+            foodType: 'BEVERAGE',
+            isAvailable: true,
+          },
+          {
+            name: 'Veg Sandwich',
+            priceInPaise: 9000,
+            foodType: 'VEG',
+            isAvailable: true,
+          },
+        ],
+      },
+    })
+
+    const body = parseBody<ApiEnvelope<{ items: Array<{ name: string }> }>>(response)
+    expect(response.statusCode).toBe(201)
+    expect(body.data.items.map((item) => item.name)).toEqual(['Cold Coffee', 'Veg Sandwich'])
+  })
+
   it('returns available items in the public menu', async () => {
     const registered = await registerOwner(app(), 'public-menu')
     const token = registered.data.accessToken

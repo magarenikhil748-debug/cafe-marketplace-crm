@@ -49,6 +49,20 @@ export const menuRoutes = async (fastify: FastifyInstance) => {
     controller.createItem,
   )
 
+  fastify.post(
+    '/categories/:categoryId/items/bulk',
+    {
+      preHandler: [requireAuth],
+      schema: withSwagger(
+        ['Menu'],
+        'Bulk create items',
+        'Creates up to 100 reviewed menu items in one category.',
+        true,
+      ),
+    },
+    controller.createItemsBulk,
+  )
+
   fastify.get(
     '/restaurants/:restaurantId/items',
     {
@@ -158,5 +172,3 @@ export const menuRoutes = async (fastify: FastifyInstance) => {
     controller.deleteAddon,
   )
 }
-
-

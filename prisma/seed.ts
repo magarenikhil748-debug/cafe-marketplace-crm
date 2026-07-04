@@ -170,6 +170,23 @@ async function main() {
       address: 'MG Road',
       city: 'Bengaluru',
       imageUrl: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4',
+      galleryImages: [
+        {
+          url: 'https://images.unsplash.com/photo-1552566626-52f8b828add9',
+          type: 'INTERIOR',
+          sortOrder: 0,
+        },
+        {
+          url: 'https://images.unsplash.com/photo-1515003197210-e0cd71810b5f',
+          type: 'FOOD',
+          sortOrder: 1,
+        },
+        {
+          url: 'https://images.unsplash.com/photo-1559329007-40df8a9345d8',
+          type: 'AMBIENCE',
+          sortOrder: 2,
+        },
+      ],
       currency: 'INR',
       businessType: BusinessType.RESTAURANT,
       taxEnabled: true,
@@ -187,6 +204,23 @@ async function main() {
       address: 'MG Road',
       city: 'Bengaluru',
       imageUrl: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4',
+      galleryImages: [
+        {
+          url: 'https://images.unsplash.com/photo-1552566626-52f8b828add9',
+          type: 'INTERIOR',
+          sortOrder: 0,
+        },
+        {
+          url: 'https://images.unsplash.com/photo-1515003197210-e0cd71810b5f',
+          type: 'FOOD',
+          sortOrder: 1,
+        },
+        {
+          url: 'https://images.unsplash.com/photo-1559329007-40df8a9345d8',
+          type: 'AMBIENCE',
+          sortOrder: 2,
+        },
+      ],
       currency: 'INR',
       businessType: BusinessType.RESTAURANT,
       taxEnabled: true,

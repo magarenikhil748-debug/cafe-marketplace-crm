@@ -12,8 +12,10 @@ const publicCafeSelect = {
   city: true,
   phone: true,
   imageUrl: true,
+  galleryImages: true,
   logoUrl: true,
   currency: true,
+  businessType: true,
 } satisfies Prisma.RestaurantSelect
 
 const marketplaceMenuInclude = {
@@ -325,7 +327,26 @@ export class PublicService {
   private withCafeMenuUrl(cafe: PublicCafe) {
     return {
       ...cafe,
+      galleryImages: this.serializeGalleryImages(cafe.galleryImages),
       menuUrl: buildCafeMenuUrl(cafe.slug),
     }
+  }
+
+  private serializeGalleryImages(value: Prisma.JsonValue) {
+    if (!Array.isArray(value)) return []
+
+    return value
+      .filter(
+        (image): image is Prisma.JsonObject =>
+          typeof image === 'object' && image !== null && !Array.isArray(image),
+      )
+      .map((image, index) => ({
+        url: typeof image['url'] === 'string' ? image['url'] : '',
+        type: typeof image['type'] === 'string' ? image['type'] : 'OTHER',
+        sortOrder: typeof image['sortOrder'] === 'number' ? image['sortOrder'] : index,
+      }))
+      .filter((image) => /^https?:\/\//i.test(image.url))
+      .sort((left, right) => left.sortOrder - right.sortOrder)
+      .slice(0, 15)
   }
 }

@@ -51,6 +51,16 @@ export const createItemSchema = z.object({
   sortOrder: z.number().int().default(0),
 })
 
+const bulkCreateItemSchema = createItemSchema.extend({
+  name: z.string().trim().min(2).max(120),
+  description: z.string().trim().min(1).max(500).optional(),
+  priceInPaise: z.number().int().positive(),
+})
+
+export const bulkCreateItemsSchema = z.object({
+  items: z.array(bulkCreateItemSchema).min(1).max(100),
+})
+
 export const updateItemSchema = createItemSchema.partial()
 
 export const updateAvailabilitySchema = z.object({
@@ -96,11 +106,10 @@ export const updateAddonSchema = createAddonSchema.partial()
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>
 export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>
 export type CreateItemInput = z.infer<typeof createItemSchema>
+export type BulkCreateItemsInput = z.infer<typeof bulkCreateItemsSchema>
 export type UpdateItemInput = z.infer<typeof updateItemSchema>
 export type CreateAddonGroupInput = z.infer<typeof createAddonGroupSchema>
 export type UpdateAddonGroupInput = z.infer<typeof updateAddonGroupSchema>
 export type CreateAddonInput = z.infer<typeof createAddonSchema>
 export type UpdateAddonInput = z.infer<typeof updateAddonSchema>
 export type ListItemsQuery = z.infer<typeof listItemsQuerySchema>
-
-

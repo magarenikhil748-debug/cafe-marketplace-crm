@@ -18,8 +18,14 @@ type PublicCafe = {
   city: string | null
   phone: string | null
   imageUrl: string | null
+  galleryImages: Array<{
+    url: string
+    type: string
+    sortOrder: number
+  }>
   logoUrl: string | null
   currency: string
+  businessType: string
   menuUrl: string
 }
 
@@ -74,6 +80,13 @@ describe('Public cafe marketplace APIs', () => {
         email: 'private-operations@example.com',
         gstNumber: 'PRIVATE-GST',
         imageUrl: 'https://example.com/cafe.jpg',
+        galleryImages: [
+          {
+            url: 'https://example.com/interior.jpg',
+            type: 'INTERIOR',
+            sortOrder: 0,
+          },
+        ],
         isApproved: true,
       },
     })
@@ -94,6 +107,14 @@ describe('Public cafe marketplace APIs', () => {
     expect(detailResponse.statusCode).toBe(200)
     expect(detailBody.data.cafe.description).toBe('Neighborhood cafe with all-day breakfast.')
     expect(detailBody.data.cafe.imageUrl).toBe('https://example.com/cafe.jpg')
+    expect(detailBody.data.cafe.galleryImages).toEqual([
+      {
+        url: 'https://example.com/interior.jpg',
+        type: 'INTERIOR',
+        sortOrder: 0,
+      },
+    ])
+    expect(detailBody.data.cafe.businessType).toBe('CAFE')
     expect(detailBody.data.cafe).not.toHaveProperty('ownerId')
     expect(detailBody.data.cafe).not.toHaveProperty('owner')
     expect(detailBody.data.cafe).not.toHaveProperty('email')
