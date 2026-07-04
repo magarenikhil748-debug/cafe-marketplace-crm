@@ -1,14 +1,16 @@
 import type { Server } from 'socket.io'
-import type { OrderStatus } from '@prisma/client'
+import type { OrderSource, OrderStatus, OrderType } from '@prisma/client'
 
 type CreatedOrderEvent = {
   orderId: string
   orderNumber: string
   restaurantId: string
   branchId: string
-  tableId: string
-  tableNumber: string
+  tableId: string | null
+  tableNumber: string | null
   status: OrderStatus
+  source: OrderSource
+  orderType: OrderType
   totalInPaise: number
   items: Array<{
     name: string
@@ -47,5 +49,3 @@ export const emitOrderStatusUpdated = (io: Server, payload: StatusEvent) => {
       .emit('order:cancelled', payload)
   }
 }
-
-

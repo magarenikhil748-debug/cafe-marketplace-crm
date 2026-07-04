@@ -7,7 +7,12 @@ import { createRequestHash } from '../../common/utils/idempotency'
 import { AuditService } from '../audit/audit.service'
 import type { CafeTableOrderInput } from '../public/public.schema'
 import { assertOrderStatusTransition, statusTimestampField } from './order-state-machine'
-import type { CreatePublicOrderInput, ListOrdersQuery, OrderItemInput } from './orders.schema'
+import type {
+  CreateManualOrderInput,
+  CreatePublicOrderInput,
+  ListOrdersQuery,
+  OrderItemInput,
+} from './orders.schema'
 
 type PreparedOrderItem = {
   menuItemId: string
@@ -211,6 +216,7 @@ export class OrdersService {
               customerName: input.customerName,
               customerPhone: input.customerPhone,
               orderType: input.orderType,
+              source: 'QR',
               subtotalInPaise,
               taxInPaise,
               totalInPaise,
@@ -265,6 +271,138 @@ export class OrdersService {
       }
       throw error
     }
+  }
+
+  async createManualOrder(userId: string, restaurantId: string, input: CreateManualOrderInput) {
+    const membership = await ensureRestaurantRole(this.prisma, userId, restaurantId, [
+      'MANAGER',
+      'STAFF',
+    ])
+
+    let table: OrderTable | null = null
+    let branchId: string
+    let taxEnabled: boolean
+
+    if (input.orderType === 'DINE_IN') {
+      table = await this.prisma.diningTable.findFirst({
+        where: {
+          id: input.tableId,
+          restaurantId,
+          isActive: true,
+          branch: { isActive: true },
+          restaurant: { isActive: true },
+        },
+        include: orderTableInclude,
+      })
+
+      if (!table) {
+        throw new AppError(
+          400,
+          ErrorCodes.TABLE_NOT_FOUND,
+          'Select an active table from this restaurant',
+        )
+      }
+
+      branchId = table.branchId
+      taxEnabled = table.restaurant.taxEnabled
+    } else {
+      const branch = await this.prisma.branch.findFirst({
+        where: {
+          restaurantId,
+          isActive: true,
+          ...(membership.branchId ? { id: membership.branchId } : {}),
+        },
+        include: { restaurant: true },
+        orderBy: { createdAt: 'asc' },
+      })
+
+      if (!branch) {
+        throw new AppError(
+          400,
+          ErrorCodes.VALIDATION_ERROR,
+          'An active branch is required for takeaway orders',
+        )
+      }
+
+      branchId = branch.id
+      taxEnabled = branch.restaurant.taxEnabled
+    }
+
+    const requestedItems: OrderItemInput[] = input.items.map((item) => ({
+      ...item,
+      addonIds: [],
+    }))
+
+    const order = await this.prisma.$transaction(
+      async (tx) => {
+        const preparedItems = await this.prepareOrderItems(
+          tx,
+          restaurantId,
+          branchId,
+          requestedItems,
+        )
+        const subtotalInPaise = preparedItems.reduce((sum, item) => sum + item.totalPriceInPaise, 0)
+        const taxInPaise = calculateTaxInPaise(subtotalInPaise, taxEnabled)
+        const totalInPaise = subtotalInPaise + taxInPaise
+        const counter = await tx.restaurantOrderSequence.upsert({
+          where: { restaurantId },
+          create: { restaurantId, nextNumber: 2 },
+          update: { nextNumber: { increment: 1 } },
+        })
+        const orderNumber = `ORD-${String(counter.nextNumber - 1).padStart(4, '0')}`
+
+        const created = await tx.order.create({
+          data: {
+            restaurantId,
+            branchId,
+            tableId: table?.id ?? null,
+            tableNumberSnapshot: table?.tableNumber ?? null,
+            orderNumber,
+            customerName: input.customerName,
+            customerPhone: input.customerPhone,
+            orderType: input.orderType,
+            source: 'MANUAL',
+            subtotalInPaise,
+            taxInPaise,
+            totalInPaise,
+            specialInstructions: input.notes,
+            items: {
+              create: preparedItems.map((item) => ({
+                menuItem: { connect: { id: item.menuItemId } },
+                itemNameSnapshot: item.itemNameSnapshot,
+                unitPriceInPaise: item.unitPriceInPaise,
+                quantity: item.quantity,
+                totalPriceInPaise: item.totalPriceInPaise,
+                instructions: item.instructions,
+                addons: { create: item.addons },
+              })),
+            },
+          },
+          include: orderInclude,
+        })
+
+        await tx.auditLog.create({
+          data: {
+            restaurantId,
+            branchId,
+            userId,
+            action: 'order.manual_created',
+            entityType: 'Order',
+            entityId: created.id,
+            metadata: {
+              orderNumber: created.orderNumber,
+              orderType: created.orderType,
+              source: created.source,
+            },
+          },
+        })
+
+        return created
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    )
+
+    return { order: this.serializeOrder(order) }
   }
 
   async listOrders(userId: string, restaurantId: string, query: ListOrdersQuery) {
@@ -336,7 +474,7 @@ export class OrdersService {
       orderId: order.id,
       orderNumber: order.orderNumber,
       status: order.status,
-      tableNumber: order.tableNumberSnapshot ?? order.table.tableNumber,
+      tableNumber: order.tableNumberSnapshot ?? order.table?.tableNumber ?? null,
       placedAt: order.placedAt,
       acceptedAt: order.acceptedAt,
       preparingAt: order.preparingAt,
@@ -490,12 +628,13 @@ export class OrdersService {
       restaurantId: order.restaurantId,
       branchId: order.branchId,
       tableId: order.tableId,
-      tableNumber: order.tableNumberSnapshot ?? order.table.tableNumber,
+      tableNumber: order.tableNumberSnapshot ?? order.table?.tableNumber ?? null,
       orderNumber: order.orderNumber,
       customerName: order.customerName,
       customerPhone: order.customerPhone,
       status: order.status,
       orderType: order.orderType,
+      source: order.source,
       subtotalInPaise: order.subtotalInPaise,
       taxInPaise: order.taxInPaise,
       totalInPaise: order.totalInPaise,

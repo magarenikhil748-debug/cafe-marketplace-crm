@@ -34,14 +34,25 @@ describe('Order APIs', () => {
   it('creates an order from a QR token', async () => {
     const fixture = await setupOrderingFixture()
     const response = await placeOrder(fixture.table.qrToken, fixture.item.id)
-    const body =
-      parseBody<ApiEnvelope<{ order: { id: string; orderNumber: string; totalInPaise: number } }>>(
-        response,
-      )
+    const body = parseBody<
+      ApiEnvelope<{
+        order: {
+          id: string
+          orderNumber: string
+          totalInPaise: number
+          source: string
+          orderType: string
+          tableId: string | null
+        }
+      }>
+    >(response)
 
     expect(response.statusCode).toBe(201)
     expect(body.data.order.orderNumber).toBe('ORD-0001')
     expect(body.data.order.totalInPaise).toBeGreaterThan(0)
+    expect(body.data.order.source).toBe('QR')
+    expect(body.data.order.orderType).toBe('DINE_IN')
+    expect(body.data.order.tableId).toBe(fixture.table.id)
   })
 
   it('prevents duplicate orders with an idempotency key', async () => {

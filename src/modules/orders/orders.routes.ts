@@ -4,6 +4,20 @@ import { withSwagger } from '../../common/utils/route-schema'
 import * as controller from './orders.controller'
 
 export const ordersRoutes = async (fastify: FastifyInstance) => {
+  fastify.post(
+    '/restaurants/:restaurantId/orders/manual',
+    {
+      preHandler: [requireAuth],
+      schema: withSwagger(
+        ['Orders'],
+        'Create manual order',
+        'Creates a staff-entered dine-in or takeaway order using server-side menu prices.',
+        true,
+      ),
+    },
+    controller.createManualOrder,
+  )
+
   fastify.get(
     '/restaurants/:restaurantId/orders',
     {
@@ -46,5 +60,3 @@ export const ordersRoutes = async (fastify: FastifyInstance) => {
     controller.updateOrderStatus,
   )
 }
-
-

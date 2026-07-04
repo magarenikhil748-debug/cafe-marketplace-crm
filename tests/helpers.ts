@@ -155,9 +155,9 @@ export const createItem = async (
   return parseBody<ApiEnvelope<{ item: { id: string; priceInPaise: number } }>>(response).data.item
 }
 
-export const setupOrderingFixture = async () => {
+export const setupOrderingFixture = async (suffix = Date.now().toString()) => {
   const fastify = app()
-  const registered = await registerOwner(fastify)
+  const registered = await registerOwner(fastify, suffix)
   const token = registered.data.accessToken
   const restaurantId = registered.data.restaurant.id
   const branch = await createBranch(fastify, token, restaurantId)

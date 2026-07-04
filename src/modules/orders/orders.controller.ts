@@ -4,6 +4,7 @@ import { sendSuccess } from '../../common/utils/api-response'
 import { cafeSlugParamsSchema, cafeTableOrderSchema } from '../public/public.schema'
 import { emitOrderCreated, emitOrderStatusUpdated } from './orders.events'
 import {
+  createManualOrderSchema,
   createPublicOrderSchema,
   listOrdersQuerySchema,
   orderParamsSchema,
@@ -84,6 +85,18 @@ export const createCafeOrder = async (request: FastifyRequest, reply: FastifyRep
   )
 }
 
+export const createManualOrder = async (request: FastifyRequest, reply: FastifyReply) => {
+  const userId = requireUserId(request)
+  const params = restaurantParamsSchema.parse(request.params)
+  const body = createManualOrderSchema.parse(request.body)
+  const service = new OrdersService(request.server.prisma)
+  const result = await service.createManualOrder(userId, params.restaurantId, body)
+
+  emitCreatedOrderIfNeeded(request, false, result.order)
+
+  return sendSuccess(reply, 'Manual order created successfully', { order: result.order }, 201)
+}
+
 export const listOrders = async (request: FastifyRequest, reply: FastifyReply) => {
   const userId = requireUserId(request)
   const params = restaurantParamsSchema.parse(request.params)
@@ -138,9 +151,11 @@ const isCreatedOrderPayload = (
   orderNumber: string
   restaurantId: string
   branchId: string
-  tableId: string
-  tableNumber: string
+  tableId: string | null
+  tableNumber: string | null
   status: 'PLACED'
+  source: 'QR' | 'MANUAL'
+  orderType: 'DINE_IN' | 'TAKEAWAY'
   totalInPaise: number
   items: Array<{ name: string; quantity: number; totalPriceInPaise: number }>
   createdAt: string
@@ -165,6 +180,8 @@ const emitCreatedOrderIfNeeded = (
     tableId: order.tableId,
     tableNumber: order.tableNumber,
     status: order.status,
+    source: order.source,
+    orderType: order.orderType,
     totalInPaise: order.totalInPaise,
     items: order.items.map((item) => ({
       name: item.name,
