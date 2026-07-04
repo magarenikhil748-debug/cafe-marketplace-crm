@@ -82,7 +82,8 @@ preset in Vercel.
 
 ```text
 Build: corepack enable && pnpm install --frozen-lockfile && npx prisma generate && npm run build
-Start: npx prisma migrate deploy && npm start
+Pre-deploy: npx prisma migrate deploy
+Start: npm start
 ```
 
 Do not run the seed on every deploy. If production seed data is intentionally needed once, set
