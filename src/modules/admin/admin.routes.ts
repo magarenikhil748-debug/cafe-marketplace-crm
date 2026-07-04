@@ -35,6 +35,20 @@ export const adminRoutes = async (fastify: FastifyInstance) => {
     controller.updateLeadStatus,
   )
 
+  fastify.post(
+    '/leads/:leadId/convert-to-cafe',
+    {
+      preHandler: adminOnly,
+      schema: withSwagger(
+        ['Admin'],
+        'Convert lead to cafe',
+        'Creates a private cafe workspace and owner account from a qualified lead.',
+        true,
+      ),
+    },
+    controller.convertLeadToCafe,
+  )
+
   fastify.get(
     '/cafes',
     {

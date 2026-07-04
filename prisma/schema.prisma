@@ -45,6 +45,16 @@ enum LeadStatus {
   REJECTED
 }
 
+enum BusinessType {
+  CAFE
+  RESTAURANT
+  BAKERY
+  CLOUD_KITCHEN
+  TEA_SHOP
+  JUICE_CENTER
+  OTHER
+}
+
 model User {
   id           String   @id @default(uuid()) @db.Uuid
   name         String
@@ -65,24 +75,25 @@ model User {
 }
 
 model Restaurant {
-  id          String   @id @default(uuid()) @db.Uuid
-  name        String
-  slug        String   @unique
-  description String?
-  ownerId     String   @db.Uuid
-  phone       String?
-  email       String?
-  address     String?
-  city        String?
-  currency    String   @default("INR")
-  taxEnabled  Boolean  @default(false)
-  gstNumber   String?
-  logoUrl     String?
-  imageUrl    String?
-  isActive    Boolean  @default(true)
-  isApproved  Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String       @id @default(uuid()) @db.Uuid
+  name         String
+  slug         String       @unique
+  description  String?
+  ownerId      String       @db.Uuid
+  phone        String?
+  email        String?
+  address      String?
+  city         String?
+  currency     String       @default("INR")
+  taxEnabled   Boolean      @default(false)
+  gstNumber    String?
+  logoUrl      String?
+  imageUrl     String?
+  businessType BusinessType @default(CAFE)
+  isActive     Boolean      @default(true)
+  isApproved   Boolean      @default(false)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
   owner         User                     @relation("RestaurantOwner", fields: [ownerId], references: [id], onDelete: Restrict)
   branches      Branch[]
@@ -95,6 +106,7 @@ model Restaurant {
   auditLogs     AuditLog[]
   idempotencies IdempotencyKey[]
   orderSequence RestaurantOrderSequence?
+  sourceLead    EarlyAccessLead?
 
   @@index([ownerId])
   @@index([createdAt])
@@ -370,16 +382,19 @@ model IdempotencyKey {
 }
 
 model EarlyAccessLead {
-  id        String     @id @default(uuid()) @db.Uuid
-  cafeName  String
-  ownerName String
-  contact   String
-  location  String
-  note      String?
-  status    LeadStatus @default(NEW)
-  source    String     @default("website")
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id           String     @id @default(uuid()) @db.Uuid
+  cafeName     String
+  ownerName    String
+  contact      String
+  location     String
+  note         String?
+  status       LeadStatus @default(NEW)
+  source       String     @default("website")
+  restaurantId String?    @unique @db.Uuid
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@index([createdAt])

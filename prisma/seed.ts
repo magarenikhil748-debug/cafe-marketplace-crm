@@ -1,7 +1,7 @@
 import 'dotenv/config'
 import { randomBytes } from 'crypto'
 import bcrypt from 'bcryptjs'
-import { FoodType, PrismaClient, UserRole } from '@prisma/client'
+import { BusinessType, FoodType, PrismaClient, UserRole } from '@prisma/client'
 
 const prisma = new PrismaClient()
 const seedCafeName = 'Spice Garden Bistro'
@@ -171,6 +171,7 @@ async function main() {
       city: 'Bengaluru',
       imageUrl: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4',
       currency: 'INR',
+      businessType: BusinessType.RESTAURANT,
       taxEnabled: true,
       gstNumber: '29ABCDE1234F1Z5',
       isActive: true,
@@ -187,6 +188,7 @@ async function main() {
       city: 'Bengaluru',
       imageUrl: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4',
       currency: 'INR',
+      businessType: BusinessType.RESTAURANT,
       taxEnabled: true,
       gstNumber: '29ABCDE1234F1Z5',
       isActive: true,

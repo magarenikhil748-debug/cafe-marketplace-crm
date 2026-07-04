@@ -4,6 +4,7 @@ import { sendSuccess } from '../../common/utils/api-response'
 import {
   adminCafeParamsSchema,
   adminLeadParamsSchema,
+  convertLeadToCafeSchema,
   listAdminCafesQuerySchema,
   listAdminLeadsQuerySchema,
   updateCafeApprovalSchema,
@@ -45,6 +46,16 @@ export const updateLeadStatus = async (request: FastifyRequest, reply: FastifyRe
   const lead = await service.updateLeadStatus(params.leadId, input.status)
 
   return sendSuccess(reply, 'Lead status updated successfully', { lead })
+}
+
+export const convertLeadToCafe = async (request: FastifyRequest, reply: FastifyReply) => {
+  const adminUserId = requireAdminUserId(request)
+  const params = adminLeadParamsSchema.parse(request.params)
+  const input = convertLeadToCafeSchema.parse(request.body)
+  const service = new AdminService(request.server.prisma)
+  const result = await service.convertLeadToCafe(adminUserId, params.leadId, input)
+
+  return sendSuccess(reply, 'Cafe account created from lead', result, 201)
 }
 
 export const updateCafeApproval = async (request: FastifyRequest, reply: FastifyReply) => {
