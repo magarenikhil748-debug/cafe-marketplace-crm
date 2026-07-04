@@ -172,6 +172,7 @@ export class AdminService {
           passwordHash,
           role: 'OWNER',
           isActive: true,
+          mustChangePassword: true,
         },
       })
 
@@ -302,6 +303,34 @@ export class AdminService {
     })
 
     return updated
+  }
+
+  async resetOwnerPassword(adminUserId: string, restaurantId: string, temporaryPassword: string) {
+    const restaurant = await this.prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { id: true, owner: { select: { id: true, name: true, email: true } } },
+    })
+    if (!restaurant) {
+      throw new AppError(404, ErrorCodes.RESTAURANT_NOT_FOUND, 'Cafe was not found')
+    }
+
+    const passwordHash = await bcrypt.hash(temporaryPassword, env.BCRYPT_SALT_ROUNDS)
+    const owner = await this.prisma.user.update({
+      where: { id: restaurant.owner.id },
+      data: { passwordHash, mustChangePassword: true },
+      select: { id: true, name: true, email: true, mustChangePassword: true },
+    })
+
+    await this.audit.log({
+      restaurantId,
+      userId: adminUserId,
+      action: 'admin.owner_password_reset',
+      entityType: 'User',
+      entityId: owner.id,
+      metadata: { ownerId: owner.id },
+    })
+
+    return owner
   }
 
   private async getCafe(restaurantId: string) {

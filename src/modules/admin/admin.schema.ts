@@ -24,6 +24,10 @@ export const updateCafeStatusSchema = z.object({
   isActive: z.boolean(),
 })
 
+export const resetOwnerPasswordSchema = z.object({
+  temporaryPassword: z.string().min(8).max(128),
+})
+
 export const adminLeadParamsSchema = z.object({
   leadId: z.string().uuid(),
 })

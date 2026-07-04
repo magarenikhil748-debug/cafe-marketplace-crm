@@ -29,6 +29,28 @@ export const errorHandler: Parameters<FastifyInstance['setErrorHandler']>[0] = (
     })
   }
 
+  const frameworkStatusCode =
+    'statusCode' in normalizedError && typeof normalizedError.statusCode === 'number'
+      ? normalizedError.statusCode
+      : undefined
+
+  if (frameworkStatusCode && frameworkStatusCode >= 400 && frameworkStatusCode < 500) {
+    const safeMessages: Partial<Record<number, string>> = {
+      400: 'Invalid request',
+      404: 'Requested route was not found',
+      413: 'Request payload is too large',
+      415: 'Unsupported media type',
+      429: 'Too many requests. Please wait before trying again.',
+    }
+
+    return reply.status(frameworkStatusCode).send({
+      success: false,
+      message: safeMessages[frameworkStatusCode] ?? 'Request could not be processed',
+      code: ErrorCodes.VALIDATION_ERROR,
+      details: {},
+    })
+  }
+
   if (normalizedError instanceof Prisma.PrismaClientKnownRequestError) {
     if (normalizedError.code === 'P2002') {
       return reply.status(409).send({
@@ -61,5 +83,3 @@ export const errorHandler: Parameters<FastifyInstance['setErrorHandler']>[0] = (
         : { message: normalizedError.message, stack: normalizedError.stack },
   })
 }
-
-

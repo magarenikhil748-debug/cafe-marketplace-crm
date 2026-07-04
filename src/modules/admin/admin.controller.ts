@@ -10,6 +10,7 @@ import {
   updateCafeApprovalSchema,
   updateCafeStatusSchema,
   updateLeadStatusSchema,
+  resetOwnerPasswordSchema,
 } from './admin.schema'
 import { AdminService } from './admin.service'
 
@@ -76,4 +77,18 @@ export const updateCafeStatus = async (request: FastifyRequest, reply: FastifyRe
   const cafe = await service.updateStatus(adminUserId, params.restaurantId, input.isActive)
 
   return sendSuccess(reply, input.isActive ? 'Cafe reactivated' : 'Cafe suspended', { cafe })
+}
+
+export const resetOwnerPassword = async (request: FastifyRequest, reply: FastifyReply) => {
+  const adminUserId = requireAdminUserId(request)
+  const params = adminCafeParamsSchema.parse(request.params)
+  const input = resetOwnerPasswordSchema.parse(request.body)
+  const service = new AdminService(request.server.prisma)
+  const owner = await service.resetOwnerPassword(
+    adminUserId,
+    params.restaurantId,
+    input.temporaryPassword,
+  )
+
+  return sendSuccess(reply, 'Owner temporary password reset successfully', { owner })
 }

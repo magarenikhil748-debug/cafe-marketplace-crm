@@ -17,6 +17,7 @@ export class AuthRepository {
         phone: true,
         role: true,
         isActive: true,
+        mustChangePassword: true,
         createdAt: true,
         memberships: {
           include: {
@@ -24,6 +25,29 @@ export class AuthRepository {
             branch: true,
           },
         },
+      },
+    })
+  }
+
+  findUserCredentialsById(id: string) {
+    return this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true, passwordHash: true, isActive: true },
+    })
+  }
+
+  updatePassword(id: string, passwordHash: string) {
+    return this.prisma.user.update({
+      where: { id },
+      data: { passwordHash, mustChangePassword: false },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        role: true,
+        mustChangePassword: true,
+        createdAt: true,
       },
     })
   }
@@ -60,5 +84,3 @@ export class AuthRepository {
     })
   }
 }
-
-

@@ -8,6 +8,16 @@ const booleanFromEnv = z
   .transform((value) => value === 'true')
   .default(false)
 
+const optionalEnvValue = z.preprocess(
+  (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+  z.string().trim().min(1).optional(),
+)
+
+const optionalEnvUrl = z.preprocess(
+  (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+  z.string().url().optional(),
+)
+
 const envSchema = z
   .object({
     DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
@@ -23,10 +33,10 @@ const envSchema = z
     PUBLIC_ORDER_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
     PUBLIC_ORDER_RATE_LIMIT_WINDOW: z.string().default('10 minutes'),
     TRUST_PROXY: booleanFromEnv,
-    SENTRY_DSN: z.string().url().optional(),
-    CLOUDINARY_CLOUD_NAME: z.string().min(1).optional(),
-    CLOUDINARY_API_KEY: z.string().min(1).optional(),
-    CLOUDINARY_API_SECRET: z.string().min(1).optional(),
+    SENTRY_DSN: optionalEnvUrl,
+    CLOUDINARY_CLOUD_NAME: optionalEnvValue,
+    CLOUDINARY_API_KEY: optionalEnvValue,
+    CLOUDINARY_API_SECRET: optionalEnvValue,
     LOG_LEVEL: z.string().default('info'),
   })
   .superRefine((value, context) => {

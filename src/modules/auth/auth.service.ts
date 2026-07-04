@@ -4,7 +4,7 @@ import { env } from '../../config/env'
 import { AppError, ErrorCodes } from '../../common/errors/app-error'
 import { generateRestaurantSlug } from '../../common/utils/restaurant-slug'
 import { AuthRepository } from './auth.repository'
-import type { LoginInput, RegisterInput } from './auth.schema'
+import type { ChangePasswordInput, LoginInput, RegisterInput } from './auth.schema'
 
 export class AuthService {
   private readonly repository: AuthRepository
@@ -83,6 +83,7 @@ export class AuthService {
       email: user.email,
       phone: user.phone,
       role: user.role,
+      mustChangePassword: user.mustChangePassword,
       createdAt: user.createdAt,
       memberships: user.memberships.map((membership) => ({
         id: membership.id,
@@ -93,12 +94,37 @@ export class AuthService {
     }
   }
 
+  async changePassword(userId: string, input: ChangePasswordInput) {
+    const user = await this.repository.findUserCredentialsById(userId)
+    if (!user?.isActive) {
+      throw new AppError(401, ErrorCodes.AUTH_UNAUTHORIZED, 'Authentication is required')
+    }
+
+    const currentPasswordMatches = await bcrypt.compare(input.currentPassword, user.passwordHash)
+    if (!currentPasswordMatches) {
+      throw new AppError(401, ErrorCodes.AUTH_INVALID_CREDENTIALS, 'Current password is incorrect')
+    }
+
+    if (input.newPassword === input.currentPassword) {
+      throw new AppError(
+        400,
+        ErrorCodes.AUTH_PASSWORD_REUSE,
+        'New password must be different from the current password',
+      )
+    }
+
+    const passwordHash = await bcrypt.hash(input.newPassword, env.BCRYPT_SALT_ROUNDS)
+    const updated = await this.repository.updatePassword(userId, passwordHash)
+    return this.toPublicUser(updated)
+  }
+
   private toPublicUser(user: {
     id: string
     name: string
     email: string
     phone: string | null
     role: UserRole
+    mustChangePassword: boolean
     createdAt: Date
   }) {
     return {
@@ -107,6 +133,7 @@ export class AuthService {
       email: user.email,
       phone: user.phone,
       role: user.role,
+      mustChangePassword: user.mustChangePassword,
       createdAt: user.createdAt,
     }
   }

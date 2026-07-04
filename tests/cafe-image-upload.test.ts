@@ -37,6 +37,21 @@ describe('cafe image upload', () => {
     expect(response.statusCode).toBe(401)
   })
 
+  it('returns a safe client error for an unsupported upload content type', async () => {
+    const response = await app().inject({
+      method: 'POST',
+      url: '/api/v1/restaurants/00000000-0000-4000-8000-000000000000/images',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      payload: 'not-a-multipart-upload',
+    })
+    const body = parseBody<ApiEnvelope<never>>(response)
+
+    expect(response.statusCode).toBe(415)
+    expect(body.message).toBe('Unsupported media type')
+    expect(body.details).toEqual({})
+    expect(response.payload).not.toContain('stack')
+  })
+
   it('does not allow an owner to upload to another cafe', async () => {
     const first = await registerOwner(app(), 'upload-first')
     const second = await registerOwner(app(), 'upload-second')

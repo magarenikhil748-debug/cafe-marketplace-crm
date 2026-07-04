@@ -64,6 +64,56 @@ describe('Platform admin cafe controls', () => {
     expect(body.data.cafes[0]?.owner.email).toBe(owner.data.user.email)
   })
 
+  it('allows only an admin to issue an owner temporary password', async () => {
+    const admin = await createPlatformAdmin(app(), 'admin-password-reset')
+    const owner = await registerOwner(app(), 'admin-password-reset-owner')
+    const endpoint = `/api/v1/admin/cafes/${owner.data.restaurant.id}/owner-password`
+
+    const ownerAttempt = await app().inject({
+      method: 'POST',
+      url: endpoint,
+      headers: authHeader(owner.data.accessToken),
+      payload: { temporaryPassword: 'OwnerRecoveryPass456' },
+    })
+    expect(ownerAttempt.statusCode).toBe(403)
+
+    const response = await app().inject({
+      method: 'POST',
+      url: endpoint,
+      headers: authHeader(admin.data.accessToken),
+      payload: { temporaryPassword: 'OwnerRecoveryPass456' },
+    })
+    const body =
+      parseBody<ApiEnvelope<{ owner: { id: string; email: string; mustChangePassword: boolean } }>>(
+        response,
+      )
+
+    expect(response.statusCode).toBe(200)
+    expect(body.data.owner).toEqual(
+      expect.objectContaining({
+        id: owner.data.user.id,
+        email: owner.data.user.email,
+        mustChangePassword: true,
+      }),
+    )
+    expect(response.payload).not.toContain('OwnerRecoveryPass456')
+    expect(response.payload).not.toContain('passwordHash')
+
+    const oldLogin = await app().inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      payload: { email: owner.data.user.email, password: 'StrongPass123' },
+    })
+    expect(oldLogin.statusCode).toBe(401)
+
+    const temporaryLogin = await app().inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      payload: { email: owner.data.user.email, password: 'OwnerRecoveryPass456' },
+    })
+    expect(temporaryLogin.statusCode).toBe(200)
+  })
+
   it('approves and unapproves marketplace visibility', async () => {
     const admin = await createPlatformAdmin(app(), 'admin-approval')
     const owner = await registerOwner(app(), 'admin-approval-cafe')

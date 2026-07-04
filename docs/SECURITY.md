@@ -13,6 +13,18 @@
 The admin role is global and must be granted through a controlled operational process, never public
 registration.
 
+## Account security
+
+- Authenticated users change their own password through `POST /api/v1/auth/change-password` after
+  proving the current password.
+- Lead-converted owners and admin-reset owners are marked `mustChangePassword=true`; changing their
+  password clears the flag.
+- Password hashes and temporary passwords never appear in API responses or audit metadata.
+- There is no email delivery or refresh-token infrastructure in this release. Recovery is therefore
+  admin-assisted through `POST /api/v1/admin/cafes/:restaurantId/owner-password`.
+- Existing access tokens remain valid after a password change. Owners can continue their current
+  session; use account deactivation for immediate access revocation.
+
 ## Public ordering
 
 Both public order routes are throttled separately from normal API traffic:
@@ -48,5 +60,6 @@ forwarded client address. Do not enable it for untrusted forwarding headers.
 - Rate limiting is in-memory and single-instance.
 - Socket.io rooms are single-instance until a shared adapter is added.
 - Sentry variables are reserved, but runtime reporting is not installed.
-- Cloudinary variables are reserved, but signed uploads are not installed.
+- Cloudinary uploads are signed server-side and accept only JPEG, PNG, or WebP files up to 5 MB.
+- Password reset email and token-version-based JWT revocation are not implemented.
 - PostHog is opt-in and sends no customer name, phone, or order contents.

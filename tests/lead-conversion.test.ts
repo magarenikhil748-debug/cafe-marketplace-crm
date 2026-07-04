@@ -188,6 +188,12 @@ describe('Admin lead to cafe conversion', () => {
       }>
     >(me)
     expect(meBody.data.user.role).toBe('OWNER')
+    expect(
+      await app().prisma.user.findUnique({
+        where: { email },
+        select: { mustChangePassword: true },
+      }),
+    ).toEqual({ mustChangePassword: true })
     expect(meBody.data.user.memberships).toEqual([
       expect.objectContaining({
         restaurant: expect.objectContaining({ slug: 'launch-cafe-owner-login' }),

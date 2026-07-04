@@ -4,7 +4,7 @@
   "description": "Production-ready backend for restaurant QR menu ordering.",
   "main": "dist/server.js",
   "type": "commonjs",
-  "packageManager": "pnpm@11.4.0",
+  "packageManager": "pnpm@11.9.0",
   "scripts": {
     "dev": "nodemon --watch src --watch prisma --exec ts-node src/server.ts",
     "build": "tsc -p tsconfig.build.json",

@@ -23,7 +23,7 @@ export const authRoutes = async (fastify: FastifyInstance) => {
       schema: withSwagger(
         ['Auth'],
         'Login',
-        'Authenticates an admin user with email and password.',
+        'Authenticates an active Tavero user with email and password.',
         false,
       ),
     },
@@ -43,6 +43,21 @@ export const authRoutes = async (fastify: FastifyInstance) => {
     },
     controller.me,
   )
+
+  fastify.post(
+    '/change-password',
+    {
+      preHandler: [requireAuth],
+      config: {
+        rateLimit: { max: 10, timeWindow: '15 minutes', groupId: 'auth-change-password' },
+      },
+      schema: withSwagger(
+        ['Auth'],
+        'Change password',
+        'Changes the logged-in user password after verifying the current password.',
+        true,
+      ),
+    },
+    controller.changePassword,
+  )
 }
-
-

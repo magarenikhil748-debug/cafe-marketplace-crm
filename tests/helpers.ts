@@ -16,6 +16,7 @@ export type ApiEnvelope<T> = {
   message: string
   data: T
   code?: string
+  details?: unknown
 }
 
 export const authHeader = (token: string) => ({

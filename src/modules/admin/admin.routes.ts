@@ -85,4 +85,18 @@ export const adminRoutes = async (fastify: FastifyInstance) => {
     },
     controller.updateCafeStatus,
   )
+
+  fastify.post(
+    '/cafes/:restaurantId/owner-password',
+    {
+      preHandler: adminOnly,
+      schema: withSwagger(
+        ['Admin'],
+        'Reset cafe owner password',
+        'Sets a temporary owner password and requires the owner to change it after login.',
+        true,
+      ),
+    },
+    controller.resetOwnerPassword,
+  )
 }
