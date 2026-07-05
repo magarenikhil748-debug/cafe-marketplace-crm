@@ -33,6 +33,20 @@ export const ordersRoutes = async (fastify: FastifyInstance) => {
   )
 
   fastify.get(
+    '/restaurants/:restaurantId/orders/:orderId/print',
+    {
+      preHandler: [requireAuth],
+      schema: withSwagger(
+        ['Orders'],
+        'Get order print data',
+        'Returns compact cafe and order details for authenticated browser bill or KOT printing.',
+        true,
+      ),
+    },
+    controller.getOrderPrintData,
+  )
+
+  fastify.get(
     '/orders/:orderId',
     {
       preHandler: [requireAuth],

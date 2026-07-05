@@ -8,6 +8,7 @@ import {
   createPublicOrderSchema,
   listOrdersQuerySchema,
   orderParamsSchema,
+  restaurantOrderParamsSchema,
   restaurantParamsSchema,
   updateOrderStatusSchema,
 } from './orders.schema'
@@ -114,6 +115,15 @@ export const getOrder = async (request: FastifyRequest, reply: FastifyReply) => 
   const order = await service.getOrder(userId, params.orderId)
 
   return sendSuccess(reply, 'Order fetched successfully', { order })
+}
+
+export const getOrderPrintData = async (request: FastifyRequest, reply: FastifyReply) => {
+  const userId = requireUserId(request)
+  const params = restaurantOrderParamsSchema.parse(request.params)
+  const service = new OrdersService(request.server.prisma)
+  const printData = await service.getPrintData(userId, params.restaurantId, params.orderId)
+
+  return sendSuccess(reply, 'Order print details fetched successfully', printData)
 }
 
 export const updateOrderStatus = async (request: FastifyRequest, reply: FastifyReply) => {

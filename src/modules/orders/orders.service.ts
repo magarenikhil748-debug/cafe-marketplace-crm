@@ -40,6 +40,22 @@ const orderInclude = {
 
 type OrderWithDetails = Prisma.OrderGetPayload<{ include: typeof orderInclude }>
 
+const printOrderInclude = {
+  restaurant: {
+    select: { name: true, address: true, city: true, phone: true, currency: true },
+  },
+  branch: {
+    select: { name: true, address: true, phone: true },
+  },
+  table: {
+    select: { tableNumber: true, tableLabel: true },
+  },
+  items: {
+    include: { addons: true },
+    orderBy: { createdAt: 'asc' },
+  },
+} satisfies Prisma.OrderInclude
+
 const orderTableInclude = {
   restaurant: true,
   branch: true,
@@ -458,6 +474,62 @@ export class OrdersService {
       'KITCHEN',
     ])
     return this.serializeOrder(order)
+  }
+
+  async getPrintData(userId: string, restaurantId: string, orderId: string) {
+    await ensureRestaurantRole(this.prisma, userId, restaurantId, ['MANAGER', 'STAFF'])
+
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, restaurantId },
+      include: printOrderInclude,
+    })
+
+    if (!order) {
+      throw new AppError(404, ErrorCodes.ORDER_NOT_FOUND, 'Order was not found')
+    }
+
+    return {
+      cafe: {
+        name: order.restaurant.name,
+        address: order.restaurant.address ?? order.branch.address,
+        city: order.restaurant.city,
+        phone: order.restaurant.phone ?? order.branch.phone,
+        branchName: order.branch.name,
+        currency: order.restaurant.currency,
+      },
+      order: {
+        id: order.id,
+        orderNumber: order.orderNumber,
+        source: order.source,
+        orderType: order.orderType,
+        table:
+          order.orderType === 'DINE_IN'
+            ? {
+                number: order.tableNumberSnapshot ?? order.table?.tableNumber ?? null,
+                label: order.table?.tableLabel ?? null,
+              }
+            : null,
+        customerName: order.customerName,
+        status: order.status,
+        subtotalInPaise: order.subtotalInPaise,
+        taxInPaise: order.taxInPaise,
+        totalInPaise: order.totalInPaise,
+        notes: order.specialInstructions,
+        createdAt: order.createdAt.toISOString(),
+        items: order.items.map((item) => ({
+          id: item.id,
+          name: item.itemNameSnapshot,
+          unitPriceInPaise: item.unitPriceInPaise,
+          quantity: item.quantity,
+          totalPriceInPaise: item.totalPriceInPaise,
+          instructions: item.instructions,
+          addons: item.addons.map((addon) => ({
+            name: addon.addonNameSnapshot,
+            priceInPaise: addon.addonPriceInPaise,
+          })),
+        })),
+      },
+    }
   }
 
   async getPublicOrderStatus(orderId: string) {

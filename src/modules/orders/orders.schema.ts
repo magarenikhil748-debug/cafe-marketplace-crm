@@ -9,6 +9,10 @@ export const orderParamsSchema = z.object({
   orderId: z.string().uuid(),
 })
 
+export const restaurantOrderParamsSchema = restaurantParamsSchema.extend({
+  orderId: z.string().uuid(),
+})
+
 export const listOrdersQuerySchema = z.object({
   status: z.nativeEnum(OrderStatus).optional(),
   branchId: z.string().uuid().optional(),
