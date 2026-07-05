@@ -6,6 +6,7 @@ import {
   createPublicOrder,
   getPublicOrderStatus,
 } from '../orders/orders.controller'
+import { createPublicReservation } from '../reservations/reservations.controller'
 import * as controller from './public.controller'
 
 export const publicRoutes = async (fastify: FastifyInstance) => {
@@ -19,6 +20,12 @@ export const publicRoutes = async (fastify: FastifyInstance) => {
     max: 5,
     timeWindow: '1 hour',
     groupId: 'public-early-access',
+  }
+
+  const publicReservationRateLimit = {
+    max: 5,
+    timeWindow: '1 hour',
+    groupId: 'public-reservation-request',
   }
 
   fastify.post(
@@ -85,6 +92,20 @@ export const publicRoutes = async (fastify: FastifyInstance) => {
       ),
     },
     controller.listCafeTables,
+  )
+
+  fastify.post(
+    '/cafes/:slug/reservations',
+    {
+      config: { rateLimit: publicReservationRateLimit },
+      schema: withSwagger(
+        ['Public'],
+        'Request a cafe table',
+        'Creates a table reservation request for an active and approved cafe.',
+        false,
+      ),
+    },
+    createPublicReservation,
   )
 
   fastify.post(

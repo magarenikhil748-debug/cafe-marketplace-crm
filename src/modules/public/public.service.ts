@@ -79,11 +79,37 @@ export class PublicService {
   async getCafe(slug: string) {
     const cafe = await this.findApprovedCafe(slug)
     const menuUrl = buildCafeMenuUrl(cafe.slug)
+    const now = new Date()
+    const reservationOffers = await this.prisma.reservationOffer.findMany({
+      where: {
+        restaurantId: cafe.id,
+        isActive: true,
+        AND: [
+          { OR: [{ validFrom: null }, { validFrom: { lte: now } }] },
+          { OR: [{ validUntil: null }, { validUntil: { gte: now } }] },
+        ],
+      },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        terms: true,
+        minGuests: true,
+        validFrom: true,
+        validUntil: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    })
 
     return {
       ...cafe,
       menuUrl,
       qrCodeDataUrl: await createQrCodeDataUrl(menuUrl),
+      reservationOffers: reservationOffers.map((offer) => ({
+        ...offer,
+        validFrom: offer.validFrom?.toISOString() ?? null,
+        validUntil: offer.validUntil?.toISOString() ?? null,
+      })),
     }
   }
 

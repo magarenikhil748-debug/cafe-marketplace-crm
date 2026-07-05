@@ -24,6 +24,7 @@ import { publicRoutes } from './modules/public/public.routes'
 import { ordersRoutes } from './modules/orders/orders.routes'
 import { dashboardRoutes } from './modules/dashboard/dashboard.routes'
 import { adminRoutes } from './modules/admin/admin.routes'
+import { reservationsRoutes } from './modules/reservations/reservations.routes'
 import { CAFE_IMAGE_MAX_BYTES } from './modules/restaurants/cafe-image-upload.service'
 
 export const buildApp = async () => {
@@ -98,6 +99,7 @@ export const buildApp = async () => {
   await app.register(menuRoutes, { prefix: '/api/v1' })
   await app.register(publicRoutes, { prefix: '/api/v1/public' })
   await app.register(ordersRoutes, { prefix: '/api/v1' })
+  await app.register(reservationsRoutes, { prefix: '/api/v1' })
   await app.register(dashboardRoutes, { prefix: '/api/v1' })
   await app.register(adminRoutes, { prefix: '/api/v1/admin' })
 

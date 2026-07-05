@@ -48,6 +48,9 @@ export class DashboardService {
       topItemGroups,
       recentOrders,
       dailyRows,
+      pendingReservations,
+      confirmedReservationsToday,
+      upcomingReservations,
     ] = await Promise.all([
       this.prisma.order.count({ where: todayWhere }),
       this.prisma.order.aggregate({
@@ -110,6 +113,23 @@ export class DashboardService {
         GROUP BY 1
         ORDER BY 1 ASC
       `),
+      this.prisma.reservation.count({
+        where: { restaurantId, status: 'REQUESTED' },
+      }),
+      this.prisma.reservation.count({
+        where: {
+          restaurantId,
+          status: 'CONFIRMED',
+          reservationDateTime: { gte: todayStart, lt: tomorrowStart },
+        },
+      }),
+      this.prisma.reservation.count({
+        where: {
+          restaurantId,
+          status: 'CONFIRMED',
+          reservationDateTime: { gte: now },
+        },
+      }),
     ])
 
     const statusCounts = Object.fromEntries(
@@ -177,6 +197,11 @@ export class DashboardService {
         status: order.status,
         createdAt: order.createdAt.toISOString(),
       })),
+      reservations: {
+        pending: pendingReservations,
+        confirmedToday: confirmedReservationsToday,
+        upcoming: upcomingReservations,
+      },
       period: {
         timezone: 'UTC',
         today: todayStart.toISOString().slice(0, 10),

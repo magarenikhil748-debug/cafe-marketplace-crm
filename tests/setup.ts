@@ -10,6 +10,8 @@ const cleanDatabase = async (app: FastifyInstance) => {
   await app.prisma.$transaction([
     app.prisma.earlyAccessLead.deleteMany(),
     app.prisma.auditLog.deleteMany(),
+    app.prisma.reservation.deleteMany(),
+    app.prisma.reservationOffer.deleteMany(),
     app.prisma.idempotencyKey.deleteMany(),
     app.prisma.orderItemAddon.deleteMany(),
     app.prisma.orderItem.deleteMany(),

@@ -42,6 +42,21 @@ enum OrderSource {
   MANUAL
 }
 
+enum ReservationStatus {
+  REQUESTED
+  CONFIRMED
+  DECLINED
+  CANCELLED
+  SEATED
+  NO_SHOW
+}
+
+enum ReservationSource {
+  PUBLIC_PROFILE
+  OWNER_CREATED
+  ADMIN_CREATED
+}
+
 enum LeadStatus {
   NEW
   CONTACTED
@@ -102,18 +117,20 @@ model Restaurant {
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
-  owner         User                     @relation("RestaurantOwner", fields: [ownerId], references: [id], onDelete: Restrict)
-  branches      Branch[]
-  members       RestaurantMember[]
-  tables        DiningTable[]
-  categories    MenuCategory[]
-  items         MenuItem[]
-  addonGroups   MenuItemAddonGroup[]
-  orders        Order[]
-  auditLogs     AuditLog[]
-  idempotencies IdempotencyKey[]
-  orderSequence RestaurantOrderSequence?
-  sourceLead    EarlyAccessLead?
+  owner             User                     @relation("RestaurantOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  branches          Branch[]
+  members           RestaurantMember[]
+  tables            DiningTable[]
+  categories        MenuCategory[]
+  items             MenuItem[]
+  addonGroups       MenuItemAddonGroup[]
+  orders            Order[]
+  auditLogs         AuditLog[]
+  idempotencies     IdempotencyKey[]
+  orderSequence     RestaurantOrderSequence?
+  sourceLead        EarlyAccessLead?
+  reservations      Reservation[]
+  reservationOffers ReservationOffer[]
 
   @@index([ownerId])
   @@index([createdAt])
@@ -131,13 +148,14 @@ model Branch {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  restaurant Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  members    RestaurantMember[]
-  tables     DiningTable[]
-  categories MenuCategory[]
-  items      MenuItem[]
-  orders     Order[]
-  auditLogs  AuditLog[]
+  restaurant   Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  members      RestaurantMember[]
+  tables       DiningTable[]
+  categories   MenuCategory[]
+  items        MenuItem[]
+  orders       Order[]
+  auditLogs    AuditLog[]
+  reservations Reservation[]
 
   @@index([restaurantId])
   @@index([createdAt])
@@ -417,4 +435,61 @@ model RestaurantOrderSequence {
   restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
   @@map("restaurant_order_sequences")
+}
+
+model ReservationOffer {
+  id           String    @id @default(uuid()) @db.Uuid
+  restaurantId String    @db.Uuid
+  title        String
+  description  String
+  terms        String?
+  minGuests    Int?
+  validFrom    DateTime?
+  validUntil   DateTime?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  restaurant   Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  reservations Reservation[]
+
+  @@index([restaurantId])
+  @@index([restaurantId, isActive])
+  @@index([validFrom, validUntil])
+  @@map("reservation_offers")
+}
+
+model Reservation {
+  id                  String            @id @default(uuid()) @db.Uuid
+  restaurantId        String            @db.Uuid
+  branchId            String?           @db.Uuid
+  offerId             String?           @db.Uuid
+  customerName        String
+  customerPhone       String
+  customerEmail       String?
+  partySize           Int
+  reservationDateTime DateTime
+  occasion            String?
+  specialRequest      String?
+  ownerNote           String?
+  status              ReservationStatus @default(REQUESTED)
+  source              ReservationSource @default(PUBLIC_PROFILE)
+  confirmedAt         DateTime?
+  cancelledAt         DateTime?
+  seatedAt            DateTime?
+  declinedAt          DateTime?
+  noShowAt            DateTime?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  restaurant Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  branch     Branch?           @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  offer      ReservationOffer? @relation(fields: [offerId], references: [id], onDelete: SetNull)
+
+  @@index([restaurantId])
+  @@index([branchId])
+  @@index([offerId])
+  @@index([restaurantId, status])
+  @@index([restaurantId, reservationDateTime])
+  @@map("reservations")
 }
