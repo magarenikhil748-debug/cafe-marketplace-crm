@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { DashboardService } from '../src/modules/dashboard/dashboard.service'
 import {
   app,
   authHeader,
@@ -29,6 +30,10 @@ type AnalyticsSummary = {
     imageUrl: string | null
   }>
   recentOrders: Array<Record<string, unknown>>
+  reservations: { pending: number; confirmedToday: number; upcoming: number }
+  reportingTimezone: string
+  reportingPeriodStart: string
+  reportingPeriodEnd: string
   period: { timezone: string; today: string }
 }
 
@@ -62,6 +67,42 @@ const placeManualTakeaway = async (token: string, restaurantId: string, itemId: 
     payload: {
       orderType: 'TAKEAWAY',
       items: [{ menuItemId: itemId, quantity: 1 }],
+    },
+  })
+
+const createAnalyticsOrder = async ({
+  restaurantId,
+  branchId,
+  createdAt,
+  orderNumber,
+  source = 'QR',
+  orderType = 'DINE_IN',
+  status = 'PLACED',
+  totalInPaise = 10000,
+}: {
+  restaurantId: string
+  branchId: string
+  createdAt: Date
+  orderNumber: string
+  source?: 'QR' | 'MANUAL'
+  orderType?: 'DINE_IN' | 'TAKEAWAY'
+  status?: 'PLACED' | 'CANCELLED'
+  totalInPaise?: number
+}) =>
+  app().prisma.order.create({
+    data: {
+      restaurantId,
+      branchId,
+      orderNumber,
+      source,
+      orderType,
+      status,
+      subtotalInPaise: totalInPaise,
+      taxInPaise: 0,
+      totalInPaise,
+      placedAt: createdAt,
+      createdAt,
+      cancelledAt: status === 'CANCELLED' ? createdAt : undefined,
     },
   })
 
@@ -154,7 +195,7 @@ describe('Owner analytics summary', () => {
     expect(body.data.topItems).toHaveLength(2)
   })
 
-  it('returns a stable seven-day UTC shape including zero days', async () => {
+  it('returns a stable seven-day cafe-local shape including zero days', async () => {
     const fixture = await setupOrderingFixture('analytics-seven-days')
     await placeQrOrder(fixture.table.qrToken, fixture.item.id)
 
@@ -165,7 +206,111 @@ describe('Owner analytics summary', () => {
     expect(body.data.last7Days).toHaveLength(7)
     expect(body.data.last7Days.every((day) => /^\d{4}-\d{2}-\d{2}$/.test(day.date))).toBe(true)
     expect(body.data.last7Days.at(-1)?.orderCount).toBe(1)
-    expect(body.data.period.timezone).toBe('UTC')
+    expect(body.data.period.timezone).toBe('Asia/Kolkata')
+    expect(body.data.reportingTimezone).toBe('Asia/Kolkata')
+    expect(body.data.reportingPeriodStart).toMatch(/T18:30:00\.000Z$/)
+    expect(body.data.reportingPeriodEnd).toMatch(/T18:30:00\.000Z$/)
+  })
+
+  it('uses Asia/Kolkata local-day boundaries for orders, revenue, trends, and reservations', async () => {
+    const fixture = await setupOrderingFixture('analytics-kolkata-boundary')
+    await app().prisma.restaurant.update({
+      where: { id: fixture.restaurantId },
+      data: { timezone: 'Asia/Kolkata' },
+    })
+    const owner = await app().prisma.restaurant.findUniqueOrThrow({
+      where: { id: fixture.restaurantId },
+      select: { ownerId: true },
+    })
+    const now = new Date('2026-07-05T20:00:00.000Z')
+
+    await createAnalyticsOrder({
+      restaurantId: fixture.restaurantId,
+      branchId: fixture.branch.id,
+      createdAt: new Date('2026-07-05T18:29:59.000Z'),
+      orderNumber: 'ORD-BEFORE-LOCAL-DAY',
+      totalInPaise: 70000,
+    })
+    await createAnalyticsOrder({
+      restaurantId: fixture.restaurantId,
+      branchId: fixture.branch.id,
+      createdAt: new Date('2026-07-05T18:30:01.000Z'),
+      orderNumber: 'ORD-IN-LOCAL-DAY',
+      totalInPaise: 10000,
+    })
+    await createAnalyticsOrder({
+      restaurantId: fixture.restaurantId,
+      branchId: fixture.branch.id,
+      createdAt: new Date('2026-07-05T19:00:00.000Z'),
+      orderNumber: 'ORD-CANCELLED-LOCAL-DAY',
+      source: 'MANUAL',
+      orderType: 'TAKEAWAY',
+      status: 'CANCELLED',
+      totalInPaise: 99000,
+    })
+    await app().prisma.reservation.createMany({
+      data: [
+        {
+          restaurantId: fixture.restaurantId,
+          customerName: 'Local Day Guest',
+          customerPhone: '+919000000001',
+          partySize: 2,
+          reservationDateTime: new Date('2026-07-05T18:30:01.000Z'),
+          status: 'CONFIRMED',
+        },
+        {
+          restaurantId: fixture.restaurantId,
+          customerName: 'Previous Day Guest',
+          customerPhone: '+919000000002',
+          partySize: 2,
+          reservationDateTime: new Date('2026-07-05T18:29:59.000Z'),
+          status: 'CONFIRMED',
+        },
+      ],
+    })
+
+    const analytics = await new DashboardService(app().prisma).analyticsSummary(
+      owner.ownerId,
+      fixture.restaurantId,
+      now,
+    )
+
+    expect(analytics.today).toMatchObject({
+      ordersToday: 2,
+      revenueTodayInPaise: 10000,
+      averageOrderValueTodayInPaise: 10000,
+      qrOrdersToday: 1,
+      manualOrdersToday: 1,
+      dineInOrdersToday: 1,
+      takeawayOrdersToday: 1,
+    })
+    expect(analytics.statusCounts.CANCELLED).toBe(1)
+    expect(analytics.last7Days.at(-1)).toMatchObject({ date: '2026-07-06', orderCount: 2 })
+    expect(analytics.reservations.confirmedToday).toBe(1)
+    expect(analytics.reportingTimezone).toBe('Asia/Kolkata')
+    expect(analytics.reportingPeriodStart).toBe('2026-07-05T18:30:00.000Z')
+    expect(analytics.reportingPeriodEnd).toBe('2026-07-06T18:30:00.000Z')
+  })
+
+  it('falls back to Asia/Kolkata when a stored timezone is invalid', async () => {
+    const fixture = await setupOrderingFixture('analytics-timezone-fallback')
+    await app().prisma.restaurant.update({
+      where: { id: fixture.restaurantId },
+      data: { timezone: 'Invalid/Timezone' },
+    })
+    const owner = await app().prisma.restaurant.findUniqueOrThrow({
+      where: { id: fixture.restaurantId },
+      select: { ownerId: true },
+    })
+
+    const analytics = await new DashboardService(app().prisma).analyticsSummary(
+      owner.ownerId,
+      fixture.restaurantId,
+      new Date('2026-07-05T20:00:00.000Z'),
+    )
+
+    expect(analytics.reportingTimezone).toBe('Asia/Kolkata')
+    expect(analytics.period).toEqual({ timezone: 'Asia/Kolkata', today: '2026-07-06' })
   })
 
   it('returns zeroed analytics for a restaurant with no orders', async () => {

@@ -106,6 +106,7 @@ model Restaurant {
   address       String?
   city          String?
   currency      String       @default("INR")
+  timezone      String       @default("Asia/Kolkata")
   taxEnabled    Boolean      @default(false)
   gstNumber     String?
   logoUrl       String?

@@ -1,6 +1,7 @@
 import { Prisma, type OrderStatus, type PrismaClient } from '@prisma/client'
 import { ensureRestaurantRole } from '../../common/middleware/require-role'
 import { endOfToday, startOfToday } from '../../common/utils/date'
+import { addDaysToDateKey, getCafeReportingPeriod } from '../../common/utils/reporting-timezone'
 import type { DashboardQuery, TopItemsQuery } from './dashboard.schema'
 
 const analyticsStatuses: OrderStatus[] = [
@@ -11,9 +12,6 @@ const analyticsStatuses: OrderStatus[] = [
   'SERVED',
   'CANCELLED',
 ]
-
-const startOfUtcDay = (date: Date) =>
-  new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
 
 type DailyAnalyticsRow = {
   date: string
@@ -27,9 +25,12 @@ export class DashboardService {
   async analyticsSummary(userId: string, restaurantId: string, now = new Date()) {
     await ensureRestaurantRole(this.prisma, userId, restaurantId, ['MANAGER', 'STAFF'])
 
-    const todayStart = startOfUtcDay(now)
-    const tomorrowStart = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000)
-    const sevenDayStart = new Date(todayStart.getTime() - 6 * 24 * 60 * 60 * 1000)
+    const restaurant = await this.prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { timezone: true },
+    })
+    const reporting = getCafeReportingPeriod(now, restaurant?.timezone)
+    const { todayStart, tomorrowStart, sevenDayStart } = reporting
     const todayWhere: Prisma.OrderWhereInput = {
       restaurantId,
       createdAt: { gte: todayStart, lt: tomorrowStart },
@@ -100,7 +101,10 @@ export class DashboardService {
       }),
       this.prisma.$queryRaw<DailyAnalyticsRow[]>(Prisma.sql`
         SELECT
-          TO_CHAR("createdAt" AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS "date",
+          TO_CHAR(
+            ("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE ${reporting.timeZone},
+            'YYYY-MM-DD'
+          ) AS "date",
           COUNT(*)::int AS "orderCount",
           COALESCE(
             SUM(CASE WHEN "status" <> 'CANCELLED' THEN "totalInPaise" ELSE 0 END),
@@ -154,8 +158,7 @@ export class DashboardService {
     const menuItemById = new Map(menuItems.map((item) => [item.id, item]))
     const dailyByDate = new Map(dailyRows.map((row) => [row.date, row]))
     const last7Days = Array.from({ length: 7 }, (_, index) => {
-      const date = new Date(sevenDayStart.getTime() + index * 24 * 60 * 60 * 1000)
-      const dateKey = date.toISOString().slice(0, 10)
+      const dateKey = addDaysToDateKey(reporting.sevenDayStartDate, index)
       const row = dailyByDate.get(dateKey)
       return {
         date: dateKey,
@@ -202,9 +205,12 @@ export class DashboardService {
         confirmedToday: confirmedReservationsToday,
         upcoming: upcomingReservations,
       },
+      reportingTimezone: reporting.timeZone,
+      reportingPeriodStart: todayStart.toISOString(),
+      reportingPeriodEnd: tomorrowStart.toISOString(),
       period: {
-        timezone: 'UTC',
-        today: todayStart.toISOString().slice(0, 10),
+        timezone: reporting.timeZone,
+        today: reporting.today,
       },
     }
   }
