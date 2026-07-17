@@ -67,7 +67,7 @@ RATE_LIMIT_WINDOW=1 minute
 LOG_LEVEL=info
 ```
 
-`FRONTEND_URL` is used for table QR URLs: `FRONTEND_URL/menu/{qrToken}`.
+`FRONTEND_URL` is used for table QR URLs: `FRONTEND_URL/cafe/{slug}/menu?t={qrToken}`.
 
 ## Setup
 
